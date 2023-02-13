@@ -22,7 +22,7 @@ derivative = "2"
 diesel = "2"
 diesel-async = "0"
 diesel-dynamic-schema = "0"
-diesel-util.git = "https://github.com/tlowerison/diesel-util"
+diesel-util = { git = "https://github.com/tlowerison/diesel-util", rev = "5db833b" }
 float-cmp = "0"
 futures = "0"
 hyper = "0"
@@ -36,7 +36,7 @@ quote = "1"
 serde = "1"
 serde_json = "1"
 serde_with = "2"
-service-util.git = "https://github.com/tlowerison/service-util"
+service-util = { git = "https://github.com/tlowerison/service-util", rev = "20324fd" }
 session-util = { git = "https://github.com/tlowerison/session-util", features = ["account-session"] }
 syn = "1"
 tokio = "1"
