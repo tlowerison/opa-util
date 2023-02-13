@@ -1,0 +1,47 @@
+[workspace]
+members = [
+  "core",
+  "opa-util",
+  "proc-macros",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Trey Lowerison"]
+
+[workspace.dependencies]
+anyhow = "1"
+async-backtrace = "0"
+async-recursion = "1"
+async-trait = "0"
+cfg-if = "1"
+chrono = "^0.4"
+derive_more = "0"
+derivative = "2"
+diesel = "2"
+diesel-async = "0"
+diesel-dynamic-schema = "0"
+diesel-util.git = "https://github.com/tlowerison/diesel-util"
+float-cmp = "0"
+futures = "0"
+hyper = "0"
+hyper-rustls = { version = "0", features = ["webpki-roots"] }
+lazy_static = "1"
+mongodb = { version = "2", features = ["bson-chrono-0_4"] }
+opentelemetry = "0"
+proc-macro2 = "1"
+proc-macro-util.git = "https://github.com/tlowerison/proc-macro-util"
+quote = "1"
+serde = "1"
+serde_json = "1"
+serde_with = "2"
+service-util.git = "https://github.com/tlowerison/service-util"
+session-util = { git = "https://github.com/tlowerison/session-util", features = ["account-session"] }
+syn = "1"
+tokio = "1"
+tracing = "0"
+tracing-opentelemetry = "0"
+typed-builder = "0"
+uuid = "1"
+
