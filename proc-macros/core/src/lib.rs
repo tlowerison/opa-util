@@ -48,7 +48,9 @@ pub fn opa_context_core(item: TokenStream) -> Result<TokenStream, Error> {
     );
     add_bounds_to_generics(
         &mut opa_context_trait_generics,
-        [parse_quote!(opa_util::session_util::BorrowAccountSession<#account_id_ty, #account_session_fields_ty>)],
+        [
+            parse_quote!(opa_util::opa_util_session_util::BorrowAccountSession<#account_id_ty, #account_session_fields_ty>),
+        ],
         Some(&parse_quote!(#account_session_field_type)),
     );
     add_bounds_to_generics(
@@ -60,11 +62,11 @@ pub fn opa_context_core(item: TokenStream) -> Result<TokenStream, Error> {
     let (opa_context_impl_generics, _, opa_context_where_clause) = opa_context_trait_generics.split_for_impl();
 
     let tokens = quote! {
-        #[opa_util::opa_async_trait]
+        #[opa_util::opa_util_async_trait]
         impl #opa_context_impl_generics opa_util::OPAContext for #ident #ty_generics #opa_context_where_clause {
             type AccountId = #account_id_ty;
             type AccountSessionFields = #account_session_fields_ty;
-            fn account_session(&self) -> Option<&opa_util::session_util::AccountSession<Self::AccountId, Self::AccountSessionFields>> {
+            fn account_session(&self) -> Option<&opa_util::opa_util_session_util::AccountSession<Self::AccountId, Self::AccountSessionFields>> {
                 self.#account_session_field_ident.borrow_account_session()
             }
             fn opa_client(&self) -> &opa_util::OPAClient {
@@ -120,7 +122,7 @@ pub fn opa_tx_cache_context_core(item: TokenStream) -> Result<TokenStream, Error
         opa_tx_cache_context_trait_generics.split_for_impl();
 
     let tokens = quote! {
-        #[opa_util::opa_async_trait]
+        #[opa_util::opa_util_async_trait]
         impl #opa_tx_cache_context_impl_generics opa_util::OPATxCacheContext for #ident #ty_generics #opa_tx_cache_context_where_clause {
             type TxCacheClient = #opa_tx_cache_client_type;
             fn opa_tx_cache_client(&self) -> Self::TxCacheClient {
@@ -186,21 +188,21 @@ pub fn opa_type_core(item: TokenStream) -> Result<TokenStream, Error> {
     let (de_impl_generics, _, de_where_clause) = de_generics.split_for_impl();
 
     let tokens = quote! {
-        impl #impl_generics opa_util::serde::ser::Serialize for #ident #ty_generics #where_clause {
+        impl #impl_generics opa_util::opa_util_serde::ser::Serialize for #ident #ty_generics #where_clause {
             #[inline]
-            fn serialize<S: opa_util::serde::ser::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-                use opa_util::serde::ser::Serialize;
+            fn serialize<S: opa_util::opa_util_serde::ser::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                use opa_util::opa_util_serde::ser::Serialize;
                 self.0.serialize(serializer)
             }
         }
 
-        impl #de_impl_generics opa_util::serde::de::Deserialize<#de_lifetime> for #ident #ty_generics #de_where_clause {
+        impl #de_impl_generics opa_util::opa_util_serde::de::Deserialize<#de_lifetime> for #ident #ty_generics #de_where_clause {
             #[inline]
             fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
             where
-                D: opa_util::serde::de::Deserializer<'de>,
+                D: opa_util::opa_util_serde::de::Deserializer<'de>,
             {
-                use opa_util::serde::de::Deserialize;
+                use opa_util::opa_util_serde::de::Deserialize;
                 opa_util::OPAType::deserialize(deserializer).map(Self)
             }
         }
@@ -285,9 +287,9 @@ mod tests {
         ))?;
 
         let expected = quote!(
-            #[opa_util::opa_async_trait]
+            #[opa_util::opa_util_async_trait]
             impl<
-                    A: Send + Sync + opa_util::session_util::BorrowAccountSession<Uuid, AccountSessionFields>,
+                    A: Send + Sync + opa_util::opa_util_session_util::BorrowAccountSession<Uuid, AccountSessionFields>,
                     D: Send + Sync,
                     O1: Send + Sync + Borrow<opa_util::OPAClient>,
                     O2: Send + Sync,
@@ -297,7 +299,7 @@ mod tests {
                 type AccountSessionFields = AccountSessionFields;
                 fn account_session(
                     &self,
-                ) -> Option<&opa_util::session_util::AccountSession<Self::AccountId, Self::AccountSessionFields>>
+                ) -> Option<&opa_util::opa_util_session_util::AccountSession<Self::AccountId, Self::AccountSessionFields>>
                 {
                     self.account_session.borrow_account_session()
                 }
@@ -326,9 +328,9 @@ mod tests {
         ))?;
 
         let expected = quote!(
-            #[opa_util::opa_async_trait]
+            #[opa_util::opa_util_async_trait]
             impl<
-                    A: Send + Sync + opa_util::session_util::BorrowAccountSession<Uuid, ()>,
+                    A: Send + Sync + opa_util::opa_util_session_util::BorrowAccountSession<Uuid, ()>,
                     D: Foo + Send + Sync,
                     O1: Yo + Send + Sync + Borrow<opa_util::OPAClient>,
                     O2: Test + Send + Sync,
@@ -338,7 +340,7 @@ mod tests {
                 type AccountSessionFields = ();
                 fn account_session(
                     &self,
-                ) -> Option<&opa_util::session_util::AccountSession<Self::AccountId, Self::AccountSessionFields>>
+                ) -> Option<&opa_util::opa_util_session_util::AccountSession<Self::AccountId, Self::AccountSessionFields>>
                 {
                     self.account_session.borrow_account_session()
                 }
@@ -367,7 +369,7 @@ mod tests {
         ))?;
 
         let expected = quote!(
-            #[opa_util::opa_async_trait]
+            #[opa_util::opa_util_async_trait]
             impl<
                     A: Send + Sync,
                     D: Send + Sync + diesel_util::_Db,
@@ -404,7 +406,7 @@ mod tests {
         ))?;
 
         let expected = quote!(
-            #[opa_util::opa_async_trait]
+            #[opa_util::opa_util_async_trait]
             impl<
                     A: Send + Sync,
                     D: Foo + Send + Sync + diesel_util::_Db,
