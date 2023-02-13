@@ -6,6 +6,7 @@ edition.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+serde.workspace = true
 session-util.workspace = true
 core = { path = "../core", package = "opa-util-core" }
 proc-macros = { path = "../proc-macros", package = "opa-util-proc-macros" }
