@@ -218,8 +218,6 @@ pub fn opa_type_core(item: TokenStream) -> Result<TokenStream, Error> {
                 Self(OPAType::from(value))
             }
         }
-
-
     };
 
     Ok(tokens)

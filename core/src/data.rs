@@ -701,9 +701,9 @@ mod opa_mongodb {
     }
 }
 
-#[cfg(feature = "db")]
+// #[cfg(feature = "db")]
 pub use db::*;
-#[cfg(feature = "db")]
+// #[cfg(feature = "db")]
 mod db {
     use super::*;
     use diesel::associations::HasTable;
@@ -761,33 +761,19 @@ mod db {
             Self: 'v,
             Ctx: 'query,
 
+            <DbRecord::Raw as TryInto<DbRecord>>::Error: Send,
+
             // Insertable bounds
-            Vec<<DbRecord as DbInsert>::Post<'v>>: Insertable<DbRecord::Table> + Send,
-            <Vec<<DbRecord as DbInsert>::Post<'v>> as Insertable<DbRecord::Table>>::Values: Send,
+            Vec<DbRecord::Post<'v>>: Insertable<DbRecord::Table> + Send,
+            <Vec<DbRecord::Post<'v>> as Insertable<DbRecord::Table>>::Values: Send,
             <DbRecord::Table as QuerySource>::FromClause: Send,
 
             // Insert bounds
-            for<'a> InsertStatement<
-                DbRecord::Table,
-                <Vec<<DbRecord as DbInsert>::Post<'v>> as Insertable<DbRecord::Table>>::Values,
-            >: LoadQuery<'query, Ctx::AsyncConnection, DbRecord::Raw>,
-            for<'a> InsertStatement<
-                <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table,
-                <Vec<<DbRecord::Raw as Audit>::AuditRow> as Insertable<
-                    <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table,
-                >>::Values,
-            >: ExecuteDsl<Ctx::AsyncConnection>,
+            InsertStatement<DbRecord::Table, <Vec<DbRecord::Post<'v>> as Insertable<DbRecord::Table>>::Values>:
+                LoadQuery<'query, Self::AsyncConnection, DbRecord::Raw>,
 
             // Audit bounds
-            DbRecord::Raw: Audit + Clone,
-            <DbRecord::Raw as Audit>::AuditRow: Send,
-            Vec<<DbRecord::Raw as Audit>::AuditRow>: Insertable<<<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table>
-                + UndecoratedInsertRecord<<<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table>,
-            <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table: Table + QueryId + Send,
-            <<<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table as QuerySource>::FromClause: Send,
-            <Vec<<DbRecord::Raw as Audit>::AuditRow> as Insertable<
-                <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table,
-            >>::Values: Send,
+            DbRecord::Raw: MaybeAudit<'query, Self::AsyncConnection>,
         {
             let db_posts = db_posts.into_iter().map(Into::into).collect::<Vec<_>>();
             if db_posts.is_empty() {
@@ -806,33 +792,19 @@ mod db {
             Self: 'v,
             Ctx: 'query,
 
+            <DbRecord::Raw as TryInto<DbRecord>>::Error: Send,
+
             // Insertable bounds
-            Vec<<DbRecord as DbInsert>::Post<'v>>: Insertable<DbRecord::Table> + Send,
-            <Vec<<DbRecord as DbInsert>::Post<'v>> as Insertable<DbRecord::Table>>::Values: Send,
+            Vec<DbRecord::Post<'v>>: Insertable<DbRecord::Table> + Send,
+            <Vec<DbRecord::Post<'v>> as Insertable<DbRecord::Table>>::Values: Send,
             <DbRecord::Table as QuerySource>::FromClause: Send,
 
             // Insert bounds
-            for<'a> InsertStatement<
-                DbRecord::Table,
-                <Vec<<DbRecord as DbInsert>::Post<'v>> as Insertable<DbRecord::Table>>::Values,
-            >: LoadQuery<'query, Ctx::AsyncConnection, DbRecord::Raw>,
-            for<'a> InsertStatement<
-                <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table,
-                <Vec<<DbRecord::Raw as Audit>::AuditRow> as Insertable<
-                    <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table,
-                >>::Values,
-            >: ExecuteDsl<Ctx::AsyncConnection>,
+            InsertStatement<DbRecord::Table, <Vec<DbRecord::Post<'v>> as Insertable<DbRecord::Table>>::Values>:
+                LoadQuery<'query, Self::AsyncConnection, DbRecord::Raw>,
 
             // Audit bounds
-            DbRecord::Raw: Audit + Clone,
-            <DbRecord::Raw as Audit>::AuditRow: Send,
-            Vec<<DbRecord::Raw as Audit>::AuditRow>: Insertable<<<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table>
-                + UndecoratedInsertRecord<<<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table>,
-            <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table: Table + QueryId + Send,
-            <<<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table as QuerySource>::FromClause: Send,
-            <Vec<<DbRecord::Raw as Audit>::AuditRow> as Insertable<
-                <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table,
-            >>::Values: Send,
+            DbRecord::Raw: MaybeAudit<'query, Self::AsyncConnection>,
         {
             let db_post = db_post.into();
             Self::Constructor::can_create(ctx, [&db_post]).await?;
@@ -922,20 +894,20 @@ mod db {
     }
 
     #[async_trait]
-    pub trait AuthzServiceDbEntitySoftDelete<'query, 'v: 'query, DbRecord, Ctx>:
+    pub trait AuthzServiceDbEntityDelete<'query, 'v: 'query, DbRecord, Ctx>:
         AuthzServiceDbEntity<DbRecord = DbRecord>
     where
         Ctx: OPAContext + OPATxCacheContext + _Db<AsyncConnection = Self::AsyncConnection, Backend = Self::Backend>,
         <Ctx as OPATxCacheContext>::TxCacheClient: Send,
 
-        DbRecord: Send + Sync + DbSoftDelete,
+        DbRecord: Send + Sync + DbDelete,
         <DbRecord::Raw as TryInto<Self::DbRecord>>::Error: Display + Send,
 
         for<'a> &'a DbRecord: Into<Self::Constructor<'a>>,
     {
         #[framed]
         #[instrument(err(Debug), skip_all)]
-        async fn try_delete<T, F>(
+        async fn try_delete<T>(
             ctx: &Ctx,
             ids: impl IntoIterator<Item = T> + Send + 'v,
         ) -> Result<Vec<Self::DbRecord>, Error>
@@ -945,51 +917,26 @@ mod db {
             // temporary Uuid bounds
             T: Borrow<Uuid>,
             for<'a> &'a T: Borrow<Uuid>,
-            Uuid: for<'a> Into<DbRecord::DeletePatchHelper<'a>>,
+            Uuid: for<'a> Into<DbRecord::DeletePatch<'a>>,
 
             T: Debug + Send + Sync,
 
             // Id bounds
-            DbRecord::Id: Clone + Hash + Eq + Send + Sync,
+            DbRecord::Id: Debug + Send,
             for<'a> &'a DbRecord::Raw: Identifiable<Id = &'a DbRecord::Id>,
             <DbRecord::Table as Table>::PrimaryKey: Expression + ExpressionMethods,
             <<DbRecord::Table as Table>::PrimaryKey as Expression>::SqlType: SqlType,
 
-            // Changeset bounds
-            <DbRecord::DeletePatch<'v> as AsChangeset>::Changeset: Send,
-            for<'a> &'a DbRecord::DeletePatch<'v>:
-                HasTable<Table = DbRecord::Table> + Identifiable<Id = &'a DbRecord::Id> + IntoUpdateTarget,
-            for<'a> <&'a DbRecord::DeletePatch<'v> as IntoUpdateTarget>::WhereClause: Send,
-            <DbRecord::Table as QuerySource>::FromClause: Send,
-
-            // UpdateStatement bounds
-            DbRecord::Table: FindDsl<DbRecord::Id>,
-            ht::Find<DbRecord::Table, DbRecord::Id>: HasTable<Table = DbRecord::Table> + IntoUpdateTarget + Send,
-            <ht::Find<DbRecord::Table, DbRecord::Id> as IntoUpdateTarget>::WhereClause: Send,
-            ht::Update<ht::Find<DbRecord::Table, DbRecord::Id>, DbRecord::DeletePatch<'v>>:
-                AsQuery + LoadQuery<'query, Ctx::AsyncConnection, DbRecord::Raw> + Send,
-
-            // Filter bounds for records whose changesets do not include any changes
-            DbRecord::Table:
-                FilterDsl<ht::EqAny<<DbRecord::Table as Table>::PrimaryKey, Vec<DbRecord::Id>>, Output = F>,
-            F: IsNotDeleted<'query, Ctx::AsyncConnection, DbRecord::Raw, DbRecord::Raw>,
-
-            // Audit bounds
-            DbRecord::Raw: Audit + Clone,
-            <DbRecord::Raw as Audit>::AuditRow: Send,
-            Vec<<DbRecord::Raw as Audit>::AuditRow>: Insertable<<<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table>
-                + UndecoratedInsertRecord<<<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table>,
-            <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table: Table + QueryId + Send,
-            <<<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table as QuerySource>::FromClause: Send,
-            <Vec<<DbRecord::Raw as Audit>::AuditRow> as Insertable<
-                <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table,
-            >>::Values: Send,
-            InsertStatement<
-                <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table,
-                <Vec<<DbRecord::Raw as Audit>::AuditRow> as Insertable<
-                    <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table,
-                >>::Values,
-            >: ExecuteDsl<Ctx::AsyncConnection>,
+            for<'a> DbRecord::DeletePatch<'a>: Send,
+            DbRecord::Raw: for<'a> Deletable<
+                'query,
+                Self::AsyncConnection,
+                DbRecord::Table,
+                Vec<DbRecord::DeletePatch<'a>>,
+                DbRecord::Id,
+                DbRecord::DeletedAt,
+                DbRecord::DeletePatch<'a>,
+            >,
         {
             let ids = ids.into_iter().collect::<Vec<T>>();
             if ids.is_empty() {
@@ -999,7 +946,7 @@ mod db {
             let db_delete_patch_helpers = ids
                 .iter()
                 .map(|id| (*id.borrow()).into())
-                .collect::<Vec<DbRecord::DeletePatchHelper<'_>>>();
+                .collect::<Vec<DbRecord::DeletePatch<'_>>>();
 
             Self::can_delete(ctx, ids.iter()).await?;
             let records = DbRecord::delete(ctx, db_delete_patch_helpers).await?;
@@ -1016,51 +963,26 @@ mod db {
             // temporary Uuid bounds
             T: Borrow<Uuid>,
             for<'a> &'a T: Borrow<Uuid>,
-            Uuid: for<'a> Into<DbRecord::DeletePatchHelper<'a>>,
+            Uuid: for<'a> Into<DbRecord::DeletePatch<'a>>,
 
             T: Debug + Send + Sync,
 
             // Id bounds
-            DbRecord::Id: Clone + Hash + Eq + Send + Sync,
+            DbRecord::Id: Debug + Send,
             for<'a> &'a DbRecord::Raw: Identifiable<Id = &'a DbRecord::Id>,
             <DbRecord::Table as Table>::PrimaryKey: Expression + ExpressionMethods,
             <<DbRecord::Table as Table>::PrimaryKey as Expression>::SqlType: SqlType,
 
-            // Changeset bounds
-            <DbRecord::DeletePatch<'v> as AsChangeset>::Changeset: Send,
-            for<'a> &'a DbRecord::DeletePatch<'v>:
-                HasTable<Table = DbRecord::Table> + Identifiable<Id = &'a DbRecord::Id> + IntoUpdateTarget,
-            for<'a> <&'a DbRecord::DeletePatch<'v> as IntoUpdateTarget>::WhereClause: Send,
-            <DbRecord::Table as QuerySource>::FromClause: Send,
-
-            // UpdateStatement bounds
-            DbRecord::Table: FindDsl<DbRecord::Id>,
-            ht::Find<DbRecord::Table, DbRecord::Id>: HasTable<Table = DbRecord::Table> + IntoUpdateTarget + Send,
-            <ht::Find<DbRecord::Table, DbRecord::Id> as IntoUpdateTarget>::WhereClause: Send,
-            ht::Update<ht::Find<DbRecord::Table, DbRecord::Id>, DbRecord::DeletePatch<'v>>:
-                AsQuery + LoadQuery<'query, Ctx::AsyncConnection, DbRecord::Raw> + Send,
-
-            // Filter bounds for records whose changesets do not include any changes
-            DbRecord::Table:
-                FilterDsl<ht::EqAny<<DbRecord::Table as Table>::PrimaryKey, Vec<DbRecord::Id>>, Output = F>,
-            F: IsNotDeleted<'query, Ctx::AsyncConnection, DbRecord::Raw, DbRecord::Raw>,
-
-            // Audit bounds
-            DbRecord::Raw: Audit + Clone,
-            <DbRecord::Raw as Audit>::AuditRow: Send,
-            Vec<<DbRecord::Raw as Audit>::AuditRow>: Insertable<<<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table>
-                + UndecoratedInsertRecord<<<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table>,
-            <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table: Table + QueryId + Send,
-            <<<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table as QuerySource>::FromClause: Send,
-            <Vec<<DbRecord::Raw as Audit>::AuditRow> as Insertable<
-                <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table,
-            >>::Values: Send,
-            InsertStatement<
-                <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table,
-                <Vec<<DbRecord::Raw as Audit>::AuditRow> as Insertable<
-                    <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table,
-                >>::Values,
-            >: ExecuteDsl<Ctx::AsyncConnection>,
+            for<'a> DbRecord::DeletePatch<'a>: Send,
+            DbRecord::Raw: for<'a> Deletable<
+                'query,
+                Self::AsyncConnection,
+                DbRecord::Table,
+                [DbRecord::DeletePatch<'a>; 1],
+                DbRecord::Id,
+                DbRecord::DeletedAt,
+                DbRecord::DeletePatch<'a>,
+            >,
         {
             let id = *id.borrow();
             Self::can_delete(ctx, [id]).await?;
@@ -1111,29 +1033,15 @@ mod db {
             ht::Find<DbRecord::Table, DbRecord::Id>: HasTable<Table = DbRecord::Table> + IntoUpdateTarget + Send,
             <ht::Find<DbRecord::Table, DbRecord::Id> as IntoUpdateTarget>::WhereClause: Send,
             ht::Update<ht::Find<DbRecord::Table, DbRecord::Id>, DbRecord::Patch<'v>>:
-                AsQuery + LoadQuery<'query, Ctx::AsyncConnection, DbRecord::Raw> + Send,
+                AsQuery + LoadQuery<'query, Self::AsyncConnection, DbRecord::Raw> + Send,
 
             // Filter bounds for records whose changesets do not include any changes
             DbRecord::Table:
                 FilterDsl<ht::EqAny<<DbRecord::Table as Table>::PrimaryKey, Vec<DbRecord::Id>>, Output = F>,
-            F: IsNotDeleted<'query, Ctx::AsyncConnection, DbRecord::Raw, DbRecord::Raw>,
+            F: IsNotDeleted<'query, Self::AsyncConnection, DbRecord::Raw, DbRecord::Raw>,
 
             // Audit bounds
-            DbRecord::Raw: Audit + Clone,
-            <DbRecord::Raw as Audit>::AuditRow: Send,
-            Vec<<DbRecord::Raw as Audit>::AuditRow>: Insertable<<<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table>
-                + UndecoratedInsertRecord<<<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table>,
-            <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table: Table + QueryId + Send,
-            <<<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table as QuerySource>::FromClause: Send,
-            <Vec<<DbRecord::Raw as Audit>::AuditRow> as Insertable<
-                <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table,
-            >>::Values: Send,
-            InsertStatement<
-                <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table,
-                <Vec<<DbRecord::Raw as Audit>::AuditRow> as Insertable<
-                    <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table,
-                >>::Values,
-            >: ExecuteDsl<Ctx::AsyncConnection>,
+            DbRecord::Raw: MaybeAudit<'query, Self::AsyncConnection>,
         {
             let db_patches = db_patches.into_iter().map(Into::into).collect::<Vec<_>>();
             if db_patches.is_empty() {
@@ -1170,29 +1078,15 @@ mod db {
             ht::Find<DbRecord::Table, DbRecord::Id>: HasTable<Table = DbRecord::Table> + IntoUpdateTarget + Send,
             <ht::Find<DbRecord::Table, DbRecord::Id> as IntoUpdateTarget>::WhereClause: Send,
             ht::Update<ht::Find<DbRecord::Table, DbRecord::Id>, DbRecord::Patch<'v>>:
-                AsQuery + LoadQuery<'query, Ctx::AsyncConnection, DbRecord::Raw> + Send,
+                AsQuery + LoadQuery<'query, Self::AsyncConnection, DbRecord::Raw> + Send,
 
             // Filter bounds for records whose changesets do not include any changes
             DbRecord::Table:
                 FilterDsl<ht::EqAny<<DbRecord::Table as Table>::PrimaryKey, Vec<DbRecord::Id>>, Output = F>,
-            F: IsNotDeleted<'query, Ctx::AsyncConnection, DbRecord::Raw, DbRecord::Raw>,
+            F: IsNotDeleted<'query, Self::AsyncConnection, DbRecord::Raw, DbRecord::Raw>,
 
             // Audit bounds
-            DbRecord::Raw: Audit + Clone,
-            <DbRecord::Raw as Audit>::AuditRow: Send,
-            Vec<<DbRecord::Raw as Audit>::AuditRow>: Insertable<<<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table>
-                + UndecoratedInsertRecord<<<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table>,
-            <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table: Table + QueryId + Send,
-            <<<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table as QuerySource>::FromClause: Send,
-            <Vec<<DbRecord::Raw as Audit>::AuditRow> as Insertable<
-                <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table,
-            >>::Values: Send,
-            InsertStatement<
-                <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table,
-                <Vec<<DbRecord::Raw as Audit>::AuditRow> as Insertable<
-                    <<DbRecord::Raw as Audit>::AuditTable as HasTable>::Table,
-                >>::Values,
-            >: ExecuteDsl<Ctx::AsyncConnection>,
+            DbRecord::Raw: MaybeAudit<'query, Self::AsyncConnection>,
         {
             let db_patch = db_patch.into();
             Self::can_update(ctx, [&db_patch]).await?;
@@ -1237,14 +1131,14 @@ mod db {
     }
 
     #[async_trait]
-    impl<'query, 'v: 'query, Ctx, DbRecord, T> AuthzServiceDbEntitySoftDelete<'query, 'v, DbRecord, Ctx> for T
+    impl<'query, 'v: 'query, Ctx, DbRecord, T> AuthzServiceDbEntityDelete<'query, 'v, DbRecord, Ctx> for T
     where
         Self: AuthzServiceDbEntity<DbRecord = DbRecord>,
 
         Ctx: OPAContext + OPATxCacheContext + _Db<AsyncConnection = Self::AsyncConnection, Backend = Self::Backend>,
         <Ctx as OPATxCacheContext>::TxCacheClient: Send,
 
-        DbRecord: Send + Sync + DbSoftDelete,
+        DbRecord: Send + Sync + DbDelete,
         <DbRecord::Raw as TryInto<Self::DbRecord>>::Error: Display + Send,
 
         for<'a> &'a DbRecord: Into<Self::Constructor<'a>>,

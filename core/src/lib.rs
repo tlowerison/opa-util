@@ -58,6 +58,8 @@ pub struct _OPAClient<Connector = HttpsConnector<HttpConnector>> {
     client: hyper::client::Client<Connector>,
     headers: HeaderMap,
     timeout: Duration,
+    pub data_path: String,
+    pub query: String,
 }
 
 impl Deref for OPAClient {
@@ -101,7 +103,13 @@ impl ClientBaseUri for OPAClient {
 }
 
 impl OPAClient {
-    pub fn new(scheme: &str, host: &str, port: &Option<u16>) -> Result<Self, anyhow::Error> {
+    pub fn new(
+        scheme: &str,
+        host: &str,
+        port: &Option<u16>,
+        data_path: impl ToString,
+        query: impl ToString,
+    ) -> Result<Self, anyhow::Error> {
         let client: hyper::Client<HttpsConnector<HttpConnector>> = hyper::Client::builder().build::<_, hyper::Body>(
             HttpsConnectorBuilder::new()
                 .with_webpki_roots()
@@ -119,6 +127,8 @@ impl OPAClient {
             base_uri,
             client,
             headers,
+            data_path: data_path.to_string(),
+            query: query.to_string(),
         })))
     }
     pub fn timeout(self, timeout: Duration) -> Self {
@@ -129,6 +139,6 @@ impl OPAClient {
 
     #[cfg(test)]
     pub(crate) fn test() -> Result<OPAClient, anyhow::Error> {
-        OPAClient::new("http", "127.0.0.1", &Some(8181))
+        OPAClient::new("http", "127.0.0.1", &Some(8181), "app", "authz")
     }
 }

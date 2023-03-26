@@ -218,7 +218,7 @@ impl Endpoint for UpsertDocument {
     }
 }
 
-/// uses json patch format https://tools.ietf.org/html/rfc6902
+/// uses [json patch format](https://tools.ietf.org/html/rfc6902)
 #[derive(Clone, Debug)]
 pub struct PatchDocument {
     pub path: String,
