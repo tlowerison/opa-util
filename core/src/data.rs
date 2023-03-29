@@ -701,19 +701,20 @@ mod opa_mongodb {
     }
 }
 
-// #[cfg(feature = "db")]
+#[cfg(feature = "db")]
 pub use db::*;
-// #[cfg(feature = "db")]
+#[cfg(feature = "db")]
 mod db {
     use super::*;
     use diesel::associations::HasTable;
     use diesel::backend::Backend;
-    use diesel::expression::{AsExpression, Expression};
+    use diesel::expression::{AsExpression, Expression, ValidGrouping};
     use diesel::expression_methods::ExpressionMethods;
     use diesel::helper_types as ht;
-    use diesel::query_dsl::methods::{FilterDsl, FindDsl};
+    use diesel::query_dsl::methods::{FilterDsl, FindDsl, SelectDsl};
     use diesel::query_source::QuerySource;
     use diesel::sql_types::SqlType;
+    use diesel::SelectableExpression;
     use diesel::{query_builder::*, Identifiable};
     use diesel::{Insertable, Table};
     use diesel_async::methods::*;
@@ -753,7 +754,7 @@ mod db {
     {
         #[framed]
         #[instrument(err(Debug), skip_all)]
-        async fn try_create(
+        async fn try_create<Op>(
             ctx: &Ctx,
             db_posts: impl IntoIterator<Item = impl Into<Self::DbPost<'v>>> + Send + 'v,
         ) -> Result<Vec<DbRecord>, Error>
@@ -763,17 +764,34 @@ mod db {
 
             <DbRecord::Raw as TryInto<DbRecord>>::Error: Send,
 
-            // Insertable bounds
-            Vec<DbRecord::Post<'v>>: Insertable<DbRecord::Table> + Send,
-            <Vec<DbRecord::Post<'v>> as Insertable<DbRecord::Table>>::Values: Send,
             <DbRecord::Table as QuerySource>::FromClause: Send,
 
+            // Insertable bounds
+            Vec<DbRecord::Post<'v>>: Insertable<DbRecord::Table>,
+            <Vec<DbRecord::Post<'v>> as Insertable<DbRecord::Table>>::Values: Send + 'query,
+            DbRecord::Raw: Send,
+
             // Insert bounds
-            InsertStatement<DbRecord::Table, <Vec<DbRecord::Post<'v>> as Insertable<DbRecord::Table>>::Values>:
-                LoadQuery<'query, Self::AsyncConnection, DbRecord::Raw>,
+            InsertStatement<DbRecord::Table, <Vec<DbRecord::Post<'v>> as Insertable<DbRecord::Table>>::Values>: Into<
+                InsertStatement<DbRecord::Table, <Vec<DbRecord::Post<'v>> as Insertable<DbRecord::Table>>::Values, Op>,
+            >,
+            InsertStatement<
+                DbRecord::Table,
+                <Vec<DbRecord::Post<'v>> as Insertable<DbRecord::Table>>::Values,
+                Op,
+                ReturningClause<DbRecord::Selection>,
+            >: LoadQuery<'query, Self::AsyncConnection, DbRecord::Raw>,
 
             // Audit bounds
             DbRecord::Raw: MaybeAudit<'query, Self::AsyncConnection>,
+
+            // Selection bounds
+            Op: Send + 'query,
+            DbRecord::Selection: SelectableExpression<DbRecord::Table> + Send + ValidGrouping<()>,
+            <DbRecord::Selection as ValidGrouping<()>>::IsAggregate: diesel::expression::MixedAggregates<
+                diesel::expression::is_aggregate::No,
+                Output = diesel::expression::is_aggregate::No,
+            >,
         {
             let db_posts = db_posts.into_iter().map(Into::into).collect::<Vec<_>>();
             if db_posts.is_empty() {
@@ -787,24 +805,41 @@ mod db {
 
         #[framed]
         #[instrument(err(Debug), skip_all)]
-        async fn try_create_one(ctx: &Ctx, db_post: impl Into<Self::DbPost<'v>> + Send) -> Result<DbRecord, Error>
+        async fn try_create_one<Op>(ctx: &Ctx, db_post: impl Into<Self::DbPost<'v>> + Send) -> Result<DbRecord, Error>
         where
             Self: 'v,
             Ctx: 'query,
 
             <DbRecord::Raw as TryInto<DbRecord>>::Error: Send,
 
-            // Insertable bounds
-            Vec<DbRecord::Post<'v>>: Insertable<DbRecord::Table> + Send,
-            <Vec<DbRecord::Post<'v>> as Insertable<DbRecord::Table>>::Values: Send,
             <DbRecord::Table as QuerySource>::FromClause: Send,
 
+            // Insertable bounds
+            Vec<DbRecord::Post<'v>>: Insertable<DbRecord::Table>,
+            <Vec<DbRecord::Post<'v>> as Insertable<DbRecord::Table>>::Values: Send + 'query,
+            DbRecord::Raw: Send,
+
             // Insert bounds
-            InsertStatement<DbRecord::Table, <Vec<DbRecord::Post<'v>> as Insertable<DbRecord::Table>>::Values>:
-                LoadQuery<'query, Self::AsyncConnection, DbRecord::Raw>,
+            InsertStatement<DbRecord::Table, <Vec<DbRecord::Post<'v>> as Insertable<DbRecord::Table>>::Values>: Into<
+                InsertStatement<DbRecord::Table, <Vec<DbRecord::Post<'v>> as Insertable<DbRecord::Table>>::Values, Op>,
+            >,
+            InsertStatement<
+                DbRecord::Table,
+                <Vec<DbRecord::Post<'v>> as Insertable<DbRecord::Table>>::Values,
+                Op,
+                ReturningClause<DbRecord::Selection>,
+            >: LoadQuery<'query, Self::AsyncConnection, DbRecord::Raw>,
 
             // Audit bounds
             DbRecord::Raw: MaybeAudit<'query, Self::AsyncConnection>,
+
+            // Selection bounds
+            Op: Send + 'query,
+            DbRecord::Selection: SelectableExpression<DbRecord::Table> + Send + ValidGrouping<()>,
+            <DbRecord::Selection as ValidGrouping<()>>::IsAggregate: diesel::expression::MixedAggregates<
+                diesel::expression::is_aggregate::No,
+                Output = diesel::expression::is_aggregate::No,
+            >,
         {
             let db_post = db_post.into();
             Self::Constructor::can_create(ctx, [&db_post]).await?;
@@ -814,82 +849,6 @@ mod db {
                 .ok_or_else(Error::default)?;
             Self::Constructor::tx_cache_upsert(ctx, [&record]).await?;
             Ok(record)
-        }
-    }
-
-    #[async_trait]
-    pub trait AuthzServiceDbEntityRead<'query, 'v, DbRecord, Ctx>: AuthzServiceDbEntity<DbRecord = DbRecord>
-    where
-        Ctx: OPAContext + OPATxCacheContext + _Db<AsyncConnection = Self::AsyncConnection, Backend = Self::Backend>,
-        <Ctx as OPATxCacheContext>::TxCacheClient: Send,
-
-        DbRecord: Send + Sync,
-    {
-        #[framed]
-        #[instrument(err(Debug), skip_all)]
-        async fn try_read<F>(
-            ctx: &Ctx,
-            ids: impl IntoIterator<Item = impl Borrow<DbRecord::Id>> + Send,
-        ) -> Result<Vec<DbRecord>, Error>
-        where
-            // temporary Uuid bound
-            DbRecord::Id: Borrow<Uuid>,
-
-            DbRecord: DbGet,
-
-            DbRecord::Id: Clone + AsExpression<ht::SqlTypeOf<<DbRecord::Table as Table>::PrimaryKey>> + Sync,
-
-            <DbRecord::Raw as TryInto<DbRecord>>::Error: Display + Send,
-            <<DbRecord::Table as Table>::PrimaryKey as Expression>::SqlType: SqlType,
-
-            // Id bounds
-            DbRecord::Id: Debug + Send,
-            for<'a> &'a DbRecord::Raw: Identifiable<Id = &'a DbRecord::Id>,
-            <DbRecord::Table as Table>::PrimaryKey: Expression + ExpressionMethods,
-            <<DbRecord::Table as Table>::PrimaryKey as Expression>::SqlType: SqlType,
-
-            DbRecord::Table:
-                FilterDsl<ht::EqAny<<DbRecord::Table as Table>::PrimaryKey, Vec<DbRecord::Id>>, Output = F>,
-            F: IsNotDeleted<'query, Ctx::AsyncConnection, DbRecord::Raw, DbRecord::Raw>,
-        {
-            let ids = ids.into_iter().map(|id| id.borrow().clone()).collect::<Vec<_>>();
-            if ids.is_empty() {
-                return Ok(vec![]);
-            }
-            Self::can_read(ctx, ids.clone()).await?;
-            Ok(DbRecord::get(ctx, ids).await?)
-        }
-
-        #[framed]
-        #[instrument(err(Debug), skip_all)]
-        async fn try_read_one<F>(
-            ctx: &Ctx,
-            id: impl Borrow<DbRecord::Id> + Debug + Send + Sync,
-        ) -> Result<DbRecord, Error>
-        where
-            // temporary Uuid bound
-            DbRecord::Id: Borrow<Uuid>,
-
-            DbRecord: DbGet,
-
-            DbRecord::Id: Clone + AsExpression<ht::SqlTypeOf<<DbRecord::Table as Table>::PrimaryKey>> + Sync,
-
-            <DbRecord::Raw as TryInto<DbRecord>>::Error: Display + Send,
-            <<DbRecord::Table as Table>::PrimaryKey as Expression>::SqlType: SqlType,
-
-            // Id bounds
-            DbRecord::Id: Debug + Send,
-            for<'a> &'a DbRecord::Raw: Identifiable<Id = &'a DbRecord::Id>,
-            <DbRecord::Table as Table>::PrimaryKey: Expression + ExpressionMethods,
-            <<DbRecord::Table as Table>::PrimaryKey as Expression>::SqlType: SqlType,
-
-            DbRecord::Table:
-                FilterDsl<ht::EqAny<<DbRecord::Table as Table>::PrimaryKey, Vec<DbRecord::Id>>, Output = F>,
-            F: IsNotDeleted<'query, Ctx::AsyncConnection, DbRecord::Raw, DbRecord::Raw>,
-        {
-            let id = id.borrow().clone();
-            Self::can_read(ctx, [id.clone()]).await?;
-            Ok(DbRecord::get_one(ctx, id).await?)
         }
     }
 
@@ -936,6 +895,7 @@ mod db {
                 DbRecord::Id,
                 DbRecord::DeletedAt,
                 DbRecord::DeletePatch<'a>,
+                DbRecord::Selection,
             >,
         {
             let ids = ids.into_iter().collect::<Vec<T>>();
@@ -982,6 +942,7 @@ mod db {
                 DbRecord::Id,
                 DbRecord::DeletedAt,
                 DbRecord::DeletePatch<'a>,
+                DbRecord::Selection,
             >,
         {
             let id = *id.borrow();
@@ -989,6 +950,94 @@ mod db {
             let mut records = DbRecord::delete(ctx, [id.into()]).await?;
             Self::Constructor::tx_cache_mark_deleted(ctx, records.iter()).await?;
             Ok(records.pop())
+        }
+    }
+
+    #[async_trait]
+    pub trait AuthzServiceDbEntityRead<'query, 'v, DbRecord, Ctx>: AuthzServiceDbEntity<DbRecord = DbRecord>
+    where
+        Ctx: OPAContext + OPATxCacheContext + _Db<AsyncConnection = Self::AsyncConnection, Backend = Self::Backend>,
+        <Ctx as OPATxCacheContext>::TxCacheClient: Send,
+
+        DbRecord: Send + Sync,
+    {
+        #[framed]
+        #[instrument(err(Debug), skip_all)]
+        async fn try_read<F>(
+            ctx: &Ctx,
+            ids: impl IntoIterator<Item = impl Borrow<DbRecord::Id>> + Send,
+        ) -> Result<Vec<DbRecord>, Error>
+        where
+            // temporary Uuid bound
+            DbRecord::Id: Borrow<Uuid>,
+
+            DbRecord: DbGet,
+
+            DbRecord::Id: Clone + AsExpression<ht::SqlTypeOf<<DbRecord::Table as Table>::PrimaryKey>> + Sync,
+
+            <DbRecord::Raw as TryInto<DbRecord>>::Error: Display + Send,
+            <<DbRecord::Table as Table>::PrimaryKey as Expression>::SqlType: SqlType,
+
+            // Id bounds
+            DbRecord::Id: Debug + Send,
+            for<'a> &'a DbRecord::Raw: Identifiable<Id = &'a DbRecord::Id>,
+            <DbRecord::Table as Table>::PrimaryKey: Expression + ExpressionMethods,
+            <<DbRecord::Table as Table>::PrimaryKey as Expression>::SqlType: SqlType,
+
+            ht::Select<DbRecord::Table, DbRecord::Selection>:
+                FilterDsl<ht::EqAny<<DbRecord::Table as Table>::PrimaryKey, Vec<DbRecord::Id>>, Output = F>,
+
+            <DbRecord::Table as Table>::PrimaryKey: Expression + ExpressionMethods,
+            <<DbRecord::Table as Table>::PrimaryKey as Expression>::SqlType: SqlType,
+
+            F: IsNotDeleted<'query, Self::AsyncConnection, DbRecord::Raw, DbRecord::Raw>,
+            <F as IsNotDeleted<'query, Self::AsyncConnection, DbRecord::Raw, DbRecord::Raw>>::IsNotDeletedFilter:
+                LoadQuery<'query, Self::AsyncConnection, DbRecord::Raw> + Send,
+        {
+            let ids = ids.into_iter().map(|id| id.borrow().clone()).collect::<Vec<_>>();
+            if ids.is_empty() {
+                return Ok(vec![]);
+            }
+            Self::can_read(ctx, ids.clone()).await?;
+            Ok(DbRecord::get(ctx, ids).await?)
+        }
+
+        #[framed]
+        #[instrument(err(Debug), skip_all)]
+        async fn try_read_one<F>(
+            ctx: &Ctx,
+            id: impl Borrow<DbRecord::Id> + Debug + Send + Sync,
+        ) -> Result<DbRecord, Error>
+        where
+            // temporary Uuid bound
+            DbRecord::Id: Borrow<Uuid>,
+
+            DbRecord: DbGet,
+
+            DbRecord::Id: Clone + AsExpression<ht::SqlTypeOf<<DbRecord::Table as Table>::PrimaryKey>> + Sync,
+
+            <DbRecord::Raw as TryInto<DbRecord>>::Error: Display + Send,
+            <<DbRecord::Table as Table>::PrimaryKey as Expression>::SqlType: SqlType,
+
+            // Id bounds
+            DbRecord::Id: Debug + Send,
+            for<'a> &'a DbRecord::Raw: Identifiable<Id = &'a DbRecord::Id>,
+            <DbRecord::Table as Table>::PrimaryKey: Expression + ExpressionMethods,
+            <<DbRecord::Table as Table>::PrimaryKey as Expression>::SqlType: SqlType,
+
+            ht::Select<DbRecord::Table, DbRecord::Selection>:
+                FilterDsl<ht::EqAny<<DbRecord::Table as Table>::PrimaryKey, Vec<DbRecord::Id>>, Output = F>,
+
+            <DbRecord::Table as Table>::PrimaryKey: Expression + ExpressionMethods,
+            <<DbRecord::Table as Table>::PrimaryKey as Expression>::SqlType: SqlType,
+
+            F: IsNotDeleted<'query, Self::AsyncConnection, DbRecord::Raw, DbRecord::Raw>,
+            <F as IsNotDeleted<'query, Self::AsyncConnection, DbRecord::Raw, DbRecord::Raw>>::IsNotDeletedFilter:
+                LoadQuery<'query, Self::AsyncConnection, DbRecord::Raw> + Send,
+        {
+            let id = id.borrow().clone();
+            Self::can_read(ctx, [id.clone()]).await?;
+            Ok(DbRecord::get_one(ctx, id).await?)
         }
     }
 
@@ -1030,18 +1079,44 @@ mod db {
 
             // UpdateStatement bounds
             DbRecord::Table: FindDsl<DbRecord::Id>,
-            ht::Find<DbRecord::Table, DbRecord::Id>: HasTable<Table = DbRecord::Table> + IntoUpdateTarget + Send,
-            <ht::Find<DbRecord::Table, DbRecord::Id> as IntoUpdateTarget>::WhereClause: Send,
-            ht::Update<ht::Find<DbRecord::Table, DbRecord::Id>, DbRecord::Patch<'v>>:
-                AsQuery + LoadQuery<'query, Self::AsyncConnection, DbRecord::Raw> + Send,
+            ht::Find<DbRecord::Table, DbRecord::Id>: IntoUpdateTarget,
+            <ht::Find<DbRecord::Table, DbRecord::Id> as IntoUpdateTarget>::WhereClause: Send + 'query,
+            UpdateStatement<
+                <ht::Find<DbRecord::Table, DbRecord::Id> as HasTable>::Table,
+                <ht::Find<DbRecord::Table, DbRecord::Id> as IntoUpdateTarget>::WhereClause,
+                <DbRecord::Patch<'v> as AsChangeset>::Changeset,
+            >: AsQuery,
+            UpdateStatement<
+                <ht::Find<DbRecord::Table, DbRecord::Id> as HasTable>::Table,
+                <ht::Find<DbRecord::Table, DbRecord::Id> as IntoUpdateTarget>::WhereClause,
+                <DbRecord::Patch<'v> as AsChangeset>::Changeset,
+                ReturningClause<DbRecord::Selection>,
+            >: AsQuery + LoadQuery<'query, Self::AsyncConnection, DbRecord::Raw> + Send,
 
-            // Filter bounds for records whose changesets do not include any changes
-            DbRecord::Table:
-                FilterDsl<ht::EqAny<<DbRecord::Table as Table>::PrimaryKey, Vec<DbRecord::Id>>, Output = F>,
+            DbRecord::Id:
+                AsExpression<ht::SqlTypeOf<<DbRecord::Table as Table>::PrimaryKey>> + Clone + Hash + Eq + Send + Sync,
+
+            DbRecord::Table: FindDsl<DbRecord::Id> + SelectDsl<DbRecord::Selection> + Send + Sync + Table + 'query,
+            ht::Find<DbRecord::Table, DbRecord::Id>: HasTable<Table = DbRecord::Table> + Send,
+            <DbRecord::Table as QuerySource>::FromClause: Send,
+
+            <<DbRecord::Table as Table>::PrimaryKey as Expression>::SqlType: Send,
+
+            DbRecord::Raw: MaybeAudit<'query, Self::AsyncConnection> + Send,
+
+            <DbRecord::Table as Table>::PrimaryKey: Expression + ExpressionMethods + Send + Sync,
+            <<DbRecord::Table as Table>::PrimaryKey as Expression>::SqlType: SqlType,
+            ht::Select<DbRecord::Table, DbRecord::Selection>:
+                FilterDsl<ht::EqAny<<DbRecord::Table as Table>::PrimaryKey, Vec<DbRecord::Id>>, Output = F> + Send,
             F: IsNotDeleted<'query, Self::AsyncConnection, DbRecord::Raw, DbRecord::Raw>,
 
-            // Audit bounds
-            DbRecord::Raw: MaybeAudit<'query, Self::AsyncConnection>,
+            // Selection bounds
+            DbRecord::Selection:
+                Clone + SelectableExpression<DbRecord::Table> + Send + ValidGrouping<()> + Sync + 'query,
+            <DbRecord::Selection as ValidGrouping<()>>::IsAggregate: diesel::expression::MixedAggregates<
+                diesel::expression::is_aggregate::No,
+                Output = diesel::expression::is_aggregate::No,
+            >,
         {
             let db_patches = db_patches.into_iter().map(Into::into).collect::<Vec<_>>();
             if db_patches.is_empty() {
@@ -1075,18 +1150,44 @@ mod db {
 
             // UpdateStatement bounds
             DbRecord::Table: FindDsl<DbRecord::Id>,
-            ht::Find<DbRecord::Table, DbRecord::Id>: HasTable<Table = DbRecord::Table> + IntoUpdateTarget + Send,
-            <ht::Find<DbRecord::Table, DbRecord::Id> as IntoUpdateTarget>::WhereClause: Send,
-            ht::Update<ht::Find<DbRecord::Table, DbRecord::Id>, DbRecord::Patch<'v>>:
-                AsQuery + LoadQuery<'query, Self::AsyncConnection, DbRecord::Raw> + Send,
+            ht::Find<DbRecord::Table, DbRecord::Id>: IntoUpdateTarget,
+            <ht::Find<DbRecord::Table, DbRecord::Id> as IntoUpdateTarget>::WhereClause: Send + 'query,
+            UpdateStatement<
+                <ht::Find<DbRecord::Table, DbRecord::Id> as HasTable>::Table,
+                <ht::Find<DbRecord::Table, DbRecord::Id> as IntoUpdateTarget>::WhereClause,
+                <DbRecord::Patch<'v> as AsChangeset>::Changeset,
+            >: AsQuery,
+            UpdateStatement<
+                <ht::Find<DbRecord::Table, DbRecord::Id> as HasTable>::Table,
+                <ht::Find<DbRecord::Table, DbRecord::Id> as IntoUpdateTarget>::WhereClause,
+                <DbRecord::Patch<'v> as AsChangeset>::Changeset,
+                ReturningClause<DbRecord::Selection>,
+            >: AsQuery + LoadQuery<'query, Self::AsyncConnection, DbRecord::Raw> + Send,
 
-            // Filter bounds for records whose changesets do not include any changes
-            DbRecord::Table:
-                FilterDsl<ht::EqAny<<DbRecord::Table as Table>::PrimaryKey, Vec<DbRecord::Id>>, Output = F>,
+            DbRecord::Id:
+                AsExpression<ht::SqlTypeOf<<DbRecord::Table as Table>::PrimaryKey>> + Clone + Hash + Eq + Send + Sync,
+
+            DbRecord::Table: FindDsl<DbRecord::Id> + SelectDsl<DbRecord::Selection> + Send + Sync + Table + 'query,
+            ht::Find<DbRecord::Table, DbRecord::Id>: HasTable<Table = DbRecord::Table> + Send,
+            <DbRecord::Table as QuerySource>::FromClause: Send,
+
+            <<DbRecord::Table as Table>::PrimaryKey as Expression>::SqlType: Send,
+
+            DbRecord::Raw: MaybeAudit<'query, Self::AsyncConnection> + Send,
+
+            <DbRecord::Table as Table>::PrimaryKey: Expression + ExpressionMethods + Send + Sync,
+            <<DbRecord::Table as Table>::PrimaryKey as Expression>::SqlType: SqlType,
+            ht::Select<DbRecord::Table, DbRecord::Selection>:
+                FilterDsl<ht::EqAny<<DbRecord::Table as Table>::PrimaryKey, Vec<DbRecord::Id>>, Output = F> + Send,
             F: IsNotDeleted<'query, Self::AsyncConnection, DbRecord::Raw, DbRecord::Raw>,
 
-            // Audit bounds
-            DbRecord::Raw: MaybeAudit<'query, Self::AsyncConnection>,
+            // Selection bounds
+            DbRecord::Selection:
+                Clone + SelectableExpression<DbRecord::Table> + Send + ValidGrouping<()> + Sync + 'query,
+            <DbRecord::Selection as ValidGrouping<()>>::IsAggregate: diesel::expression::MixedAggregates<
+                diesel::expression::is_aggregate::No,
+                Output = diesel::expression::is_aggregate::No,
+            >,
         {
             let db_patch = db_patch.into();
             Self::can_update(ctx, [&db_patch]).await?;
