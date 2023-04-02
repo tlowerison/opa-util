@@ -22,7 +22,7 @@ derivative = "2"
 diesel = "2"
 diesel-async = "0"
 diesel-dynamic-schema = "0"
-diesel-util = { git = "https://github.com/tlowerison/diesel-util", rev = "c86567b" }
+diesel-util = { git = "https://github.com/tlowerison/diesel-util", rev = "30448d2" }
 float-cmp = "0"
 futures = "0"
 hyper = "0"
@@ -31,12 +31,12 @@ lazy_static = "1"
 mongodb = { version = "2", features = ["bson-chrono-0_4"] }
 opentelemetry = "0"
 proc-macro2 = "1"
-proc-macro-util.git = "https://github.com/tlowerison/proc-macro-util"
+proc-macro-util = { git = "https://github.com/tlowerison/proc-macro-util", rev = "f8499ba" }
 quote = "1"
 serde = "1"
 serde_json = "1"
 serde_with = "2"
-service-util = { git = "https://github.com/tlowerison/service-util", rev = "4137c5f" }
+service-util = { git = "https://github.com/tlowerison/service-util", rev = "43f193a" }
 session-util = { git = "https://github.com/tlowerison/session-util", rev = "bfee5b2", features = ["account-session"] }
 syn = "1"
 tokio = "1"
