@@ -36,7 +36,7 @@ quote = "1"
 serde = "1"
 serde_json = "1"
 serde_with = "2"
-service-util = { git = "https://github.com/tlowerison/service-util", rev = "43f193a" }
+service-util = { git = "https://github.com/tlowerison/service-util", rev = "c0e2eae" }
 session-util = { git = "https://github.com/tlowerison/session-util", rev = "bfee5b2", features = ["account-session"] }
 syn = "1"
 tokio = "1"
