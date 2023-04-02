@@ -1,5 +1,5 @@
 use proc_macro2::{Span, TokenStream};
-use proc_macro_util::{add_bounds_to_generics, get_data_struct_field_ident};
+use proc_macro_util::{add_bounds_to_generics, find_field_attribute_in_struct};
 use quote::quote;
 use syn::parse::{Parse, ParseStream};
 use syn::{parse2, parse_quote, punctuated::Punctuated, Error, Token};
@@ -14,7 +14,7 @@ pub fn opa_context_core(item: TokenStream) -> Result<TokenStream, Error> {
     let ast: syn::DeriveInput = parse2(item)?;
     let ident = &ast.ident;
 
-    let data_struct = match &ast.data {
+    match &ast.data {
         syn::Data::Struct(data_struct) => data_struct,
         _ => {
             return Err(Error::new_spanned(
@@ -24,9 +24,15 @@ pub fn opa_context_core(item: TokenStream) -> Result<TokenStream, Error> {
         }
     };
 
-    let (account_session_field_ident, account_session_field, account_session_attribute) =
-        get_data_struct_field_ident("account_session", data_struct, &ast)?;
-    let (opa_client_field_ident, opa_client_field, _) = get_data_struct_field_ident("opa_client", data_struct, &ast)?;
+    let account_session_attr = find_field_attribute_in_struct("account_session", &ast)?;
+    let opa_client_attr = find_field_attribute_in_struct("opa_client", &ast)?;
+
+    let account_session_field_ident = account_session_attr.field_accessor;
+    let account_session_field = account_session_attr.field;
+    let account_session_attribute = account_session_attr.attr;
+
+    let opa_client_field_ident = opa_client_attr.field_accessor;
+    let opa_client_field = opa_client_attr.field;
 
     let account_session_field_type = &account_session_field.ty;
     let opa_client_field_type = &opa_client_field.ty;
@@ -82,7 +88,7 @@ pub fn opa_tx_cache_context_core(item: TokenStream) -> Result<TokenStream, Error
     let ast: syn::DeriveInput = parse2(item)?;
     let ident = &ast.ident;
 
-    let data_struct = match &ast.data {
+    match &ast.data {
         syn::Data::Struct(data_struct) => data_struct,
         _ => {
             return Err(Error::new_spanned(
@@ -92,9 +98,14 @@ pub fn opa_tx_cache_context_core(item: TokenStream) -> Result<TokenStream, Error
         }
     };
 
-    let (db_field_ident, db_field, _) = get_data_struct_field_ident("db", data_struct, &ast)?;
-    let (opa_tx_cache_client_field_ident, opa_tx_cache_client_field, _) =
-        get_data_struct_field_ident("opa_tx_cache_client", data_struct, &ast)?;
+    let db_attr = find_field_attribute_in_struct("db", &ast)?;
+    let opa_tx_cache_client_attr = find_field_attribute_in_struct("opa_tx_cache_client", &ast)?;
+
+    let db_field_ident = db_attr.field_accessor;
+    let db_field = db_attr.field;
+
+    let opa_tx_cache_client_field_ident = opa_tx_cache_client_attr.field_accessor;
+    let opa_tx_cache_client_field = opa_tx_cache_client_attr.field;
 
     let db_field_type = &db_field.ty;
     let opa_tx_cache_client_type = &opa_tx_cache_client_field.ty;
