@@ -183,7 +183,7 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
             return Ok(());
         }
         let allowed: OPAQueryResult = Self::can_create_query(ctx, records).query(ctx.opa_client()).await?;
-        allowed.ok_or_else(Error::bad_request)
+        allowed.ok_or_else(|| Error::bad_request_msg("Unauthorized"))
     }
 
     #[instrument(err(Debug), skip(ctx, ids))]
@@ -196,7 +196,7 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
             return Ok(());
         }
         let allowed: OPAQueryResult = Self::can_delete_query(ctx, ids).query(ctx.opa_client()).await?;
-        allowed.ok_or_else(Error::bad_request)
+        allowed.ok_or_else(|| Error::bad_request_msg("Unauthorized"))
     }
 
     #[instrument(err(Debug), skip(ctx, ids))]
@@ -209,7 +209,7 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
             return Ok(());
         }
         let allowed: OPAQueryResult = Self::can_read_query(ctx, ids).query(ctx.opa_client()).await?;
-        allowed.ok_or_else(Error::bad_request)
+        allowed.ok_or_else(|| Error::bad_request_msg("Unauthorized"))
     }
 
     #[instrument(err(Debug), skip(ctx, patches))]
@@ -222,7 +222,7 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
             return Ok(());
         }
         let allowed: OPAQueryResult = Self::can_update_query(ctx, patches).query(ctx.opa_client()).await?;
-        allowed.ok_or_else(Error::bad_request)
+        allowed.ok_or_else(|| Error::bad_request_msg("Unauthorized"))
     }
 
     // TODO: unfinished
