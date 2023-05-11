@@ -22,7 +22,7 @@ derivative = "2"
 diesel = "2"
 diesel-async = "0"
 diesel-dynamic-schema = "0"
-diesel-util = { git = "https://github.com/tlowerison/diesel-util", rev = "799b999 }
+diesel-util = { git = "https://github.com/tlowerison/diesel-util", rev = "799b999" }
 float-cmp = "0"
 futures = "0"
 hyper = "0"
