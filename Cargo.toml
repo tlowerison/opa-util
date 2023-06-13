@@ -31,12 +31,12 @@ lazy_static = "1"
 mongodb = { version = "2", features = ["bson-chrono-0_4"] }
 opentelemetry = "0"
 proc-macro2 = "1"
-proc-macro-util = { git = "https://github.com/tlowerison/proc-macro-util", rev = "a06c7e4" }
+proc-macro-util = { git = "https://github.com/tlowerison/proc-macro-util", rev = "b93d2c5" }
 quote = "1"
 serde = "1"
 serde_json = "1"
 serde_with = "2"
-service-util = { git = "https://github.com/tlowerison/service-util", rev = "d32b1b9" }
+service-util = { git = "https://github.com/tlowerison/service-util", rev = "caba9d9" }
 session-util = { git = "https://github.com/tlowerison/session-util", rev = "bfee5b2", features = ["account-session"] }
 syn = "1"
 tokio = "1"
