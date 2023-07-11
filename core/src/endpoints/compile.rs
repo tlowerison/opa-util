@@ -1,5 +1,5 @@
 use crate::models::*;
-use crate::OPAClient;
+use crate::{InternalError, OPAClient};
 use futures::future::try_join_all;
 use hyper::{body::Bytes, http::header::*, Body, Method};
 use serde::de::{Deserialize, Deserializer, Error};
@@ -239,7 +239,7 @@ mod evaluation {
         opa_client: &OPAClient,
         query: impl Into<PEQuery<'_>>,
         data_cache: impl Into<Option<Value>>,
-    ) -> Result<Evaluation, anyhow::Error> {
+    ) -> Result<Evaluation, InternalError> {
         let query = query.into();
         // TODO: remove clone
         let input = query.input.clone();
@@ -247,7 +247,7 @@ mod evaluation {
         let bytes = response.body();
 
         let value: Value = serde_json::from_slice(bytes).map_err(|err| {
-            anyhow::Error::msg(format!(
+            InternalError::msg(format!(
                 "{err}:\n{}",
                 serde_json::to_string_pretty(&serde_json::from_slice::<Value>(bytes).unwrap()).unwrap()
             ))
@@ -257,30 +257,30 @@ mod evaluation {
         info!("{value}");
 
         let PEQueryResponse { result } = serde_json::from_slice(bytes).map_err(|err| {
-            anyhow::Error::msg(format!(
+            InternalError::msg(format!(
                 "{err}:\n{}",
                 serde_json::to_string_pretty(&serde_json::from_slice::<Value>(bytes).unwrap()).unwrap()
             ))
         })?;
 
-        let mut queries = result.queries.ok_or_else(|| anyhow::Error::msg("Unauthorized"))?;
+        let mut queries = result.queries.ok_or_else(|| InternalError::msg("Unauthorized"))?;
         if queries.is_empty() {
-            return Err(anyhow::Error::msg("Unauthorized"));
+            return Err(InternalError::msg("Unauthorized"));
         }
         if queries.len() > 1 {
-            return Err(anyhow::Error::msg(
+            return Err(InternalError::msg(
                 "Unauthorized: unsupported number of queries returned",
             ));
         }
         if queries[0].0.len() != 1 {
-            return Err(anyhow::Error::msg(
+            return Err(InternalError::msg(
                 "Unauthorized: unsupported number of queries returned",
             ));
         }
 
         let mut query = queries.pop().unwrap().0.pop().unwrap();
         if query.terms.len() != 1 {
-            return Err(anyhow::Error::msg(
+            return Err(InternalError::msg(
                 "Unauthorized: unsupported number of query terms returned",
             ));
         }
@@ -290,19 +290,19 @@ mod evaluation {
         {
             opa_policy_path_nodes
         } else {
-            return Err(anyhow::Error::msg(format!(
+            return Err(InternalError::msg(format!(
                 "Unauthorized: unexpected query term returned: {query_term:?}"
             )));
         };
         if query_term_ref_nodes.len() != 4 {
-            return Err(anyhow::Error::msg(format!(
+            return Err(InternalError::msg(format!(
                 "Unauthorized: unexpected number of query term ref nodes returned: {query_term_ref_nodes:?}"
             )));
         }
         match &query_term_ref_nodes[0] {
             OPAPolicyPathNode::Var("data") => {}
             node => {
-                return Err(anyhow::Error::msg(format!(
+                return Err(InternalError::msg(format!(
                     "Unauthorized: unexpected query term ref node[0]: {node:?}"
                 )))
             }
@@ -310,7 +310,7 @@ mod evaluation {
         match &query_term_ref_nodes[1] {
             OPAPolicyPathNode::String("partial") => {}
             node => {
-                return Err(anyhow::Error::msg(format!(
+                return Err(InternalError::msg(format!(
                     "Unauthorized: unexpected query term ref node[1]: {node:?}"
                 )))
             }
@@ -318,7 +318,7 @@ mod evaluation {
         match &query_term_ref_nodes[2] {
             OPAPolicyPathNode::String("app") => {}
             node => {
-                return Err(anyhow::Error::msg(format!(
+                return Err(InternalError::msg(format!(
                     "Unauthorized: unexpected query term ref node[2]: {node:?}"
                 )))
             }
@@ -326,27 +326,27 @@ mod evaluation {
         match &query_term_ref_nodes[3] {
             OPAPolicyPathNode::String("authz") => {}
             node => {
-                return Err(anyhow::Error::msg(format!(
+                return Err(InternalError::msg(format!(
                     "Unauthorized: unexpected query term ref node[3]: {node:?}"
                 )))
             }
         }
 
-        let mut supports = result.supports.ok_or_else(|| anyhow::Error::msg("Unauthorized"))?;
+        let mut supports = result.supports.ok_or_else(|| InternalError::msg("Unauthorized"))?;
         if supports.len() != 1 {
-            return Err(anyhow::Error::msg("Unauthorized: unexpected number of supports"));
+            return Err(InternalError::msg("Unauthorized: unexpected number of supports"));
         }
 
         let PEQueryResponseResultSupport { package, mut rules } = supports.pop().unwrap();
         if package.paths.len() != 3 {
-            return Err(anyhow::Error::msg(
+            return Err(InternalError::msg(
                 "Unauthorized: unexpected number of support.package.paths",
             ));
         }
         match &package.paths[0] {
             OPAPolicyPathNode::Var("data") => {}
             node => {
-                return Err(anyhow::Error::msg(format!(
+                return Err(InternalError::msg(format!(
                     "Unauthorized: unexpected query term ref node[0]: {node:?}"
                 )))
             }
@@ -354,7 +354,7 @@ mod evaluation {
         match &package.paths[1] {
             OPAPolicyPathNode::String("partial") => {}
             node => {
-                return Err(anyhow::Error::msg(format!(
+                return Err(InternalError::msg(format!(
                     "Unauthorized: unexpected query term ref node[1]: {node:?}"
                 )))
             }
@@ -362,7 +362,7 @@ mod evaluation {
         match &package.paths[2] {
             OPAPolicyPathNode::String("app") => {}
             node => {
-                return Err(anyhow::Error::msg(format!(
+                return Err(InternalError::msg(format!(
                     "Unauthorized: unexpected query term ref node[2]: {node:?}"
                 )))
             }
@@ -387,7 +387,7 @@ mod evaluation {
                 for condition in &rule.conditions {
                     let operation = match condition.as_operation() {
                         Ok(operation) => operation,
-                        Err(err) => return Some(Err(anyhow::Error::msg(format!("Unauthorized: {err}")))),
+                        Err(err) => return Some(Err(InternalError::msg(format!("Unauthorized: {err}")))),
                     };
                     match &operation {
                         Operation::Boolean(_) => {} // ignore Boolean variants for now
@@ -396,7 +396,7 @@ mod evaluation {
                 }
                 operations.sort();
 
-                Some(Ok::<_, anyhow::Error>(Rule { positive, operations }))
+                Some(Ok::<_, InternalError>(Rule { positive, operations }))
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -441,7 +441,7 @@ mod evaluation {
         match authz {
             _Evaluation::Accept => Ok(Evaluation::Accept),
             _Evaluation::Filter(filters) => Ok(Evaluation::Filter(filters)),
-            _Evaluation::Reject => Err(anyhow::Error::msg("Unauthorized")),
+            _Evaluation::Reject => Err(InternalError::msg("Unauthorized")),
         }
     }
 
@@ -480,7 +480,7 @@ mod evaluation {
     //         }
 
     //         impl Filter {
-    //             pub fn get_query(&self, join_set: &mut JoinSet<'_>) -> Result<PEResult, anyhow::Error> {
+    //             pub fn get_query(&self, join_set: &mut JoinSet<'_>) -> Result<PEResult, InternalError> {
     //                 match self {
     //                     Self::Equality { negated, left, right } => FilterVarEquality::from((left, right)).get_query(query, schemas, schema, join_set),
     //                     Self::Exists { negated, key } => todo!(),
@@ -490,7 +490,7 @@ mod evaluation {
     //         }
 
     //         impl<'a> FilterVarEquality<'a> {
-    //             pub fn get_query(&self, join_set: &mut JoinSet<'a>) -> Result<PEResult<SqlLiteral<Bool>>, anyhow::Error> {
+    //             pub fn get_query(&self, join_set: &mut JoinSet<'a>) -> Result<PEResult<SqlLiteral<Bool>>, InternalError> {
     //                 match self {
     //                     // kind of a weird pair, not sure if this would ever exist
     //                     // every item1 in all_over1 {
@@ -532,7 +532,7 @@ mod evaluation {
     //                                     }
     //                                     Ok(PEResult::Filter(query))
     //                                 },
-    //                                 _ => return Err(anyhow::Error::msg(format!("cannot iterate over non-iterable value: {any_over}"))),
+    //                                 _ => return Err(InternalError::msg(format!("cannot iterate over non-iterable value: {any_over}"))),
     //                             }
     //                         },
     //                         _ => todo!(),
@@ -585,7 +585,7 @@ mod evaluation {
     //                                 }
     //                                 Ok(PEResult::Filter(query))
     //                             },
-    //                             _ => return Err(anyhow::Error::msg(format!("cannot iterate over non-iterable value: {any_over}"))),
+    //                             _ => return Err(InternalError::msg(format!("cannot iterate over non-iterable value: {any_over}"))),
     //                         },
     //                         _ => todo!(),
     //                     }
@@ -604,7 +604,7 @@ mod evaluation {
     //                         FilterVar::Unknown(_any_over_path) => todo!(),
     //                         FilterVar::Value(any_over_value) => match any_over_value {
     //                             Value::Array(_any_over_array) => todo!(),
-    //                             value => return Err(anyhow::Error::msg(format!("Unauthorized: AnyOverUnknown: unable to iterate over non-array:\n{value}"))),
+    //                             value => return Err(InternalError::msg(format!("Unauthorized: AnyOverUnknown: unable to iterate over non-array:\n{value}"))),
     //                         },
     //                         _ => todo!(),
     //                     }
@@ -627,7 +627,7 @@ mod evaluation {
     //                                 }
     //                                 Ok(PEResult::Filter(query))
     //                             },
-    //                             value => return Err(anyhow::Error::msg(format!("Unauthorized: AnyOverUnknown: unable to iterate over non-array:\n{value}"))),
+    //                             value => return Err(InternalError::msg(format!("Unauthorized: AnyOverUnknown: unable to iterate over non-array:\n{value}"))),
     //                         },
     //                         _ => todo!(),
     //                     }
@@ -641,7 +641,7 @@ mod evaluation {
     //                     FilterVarEquality::UnknownValue(Unknown(unknown), value) => {
     //                         let [service, entity, field] = unknown
     //                             .try_into()
-    //                             .map_err(|err| anyhow::Error::msg(format!("unable to cast unkonwn as (service, entity, field) tuple: {err}")))?;
+    //                             .map_err(|err| InternalError::msg(format!("unable to cast unkonwn as (service, entity, field) tuple: {err}")))?;
     //                         let mut query = query;
     //                         let service = schemas.get(&**service);
     //                         let table = schema.table(&**entity);
@@ -668,7 +668,7 @@ mod evaluation {
     //                                         let query = query.filter(Box::new(column.eq(number)));
     //                                         Ok(PEResult::Filter(query))
     //                                     } else {
-    //                                         return Err(anyhow::Error::msg(format!("numeric value to large to filter on: {number}")));
+    //                                         return Err(InternalError::msg(format!("numeric value to large to filter on: {number}")));
     //                                     }
     //                                 } else {
     //                                     let number = number.as_f64().unwrap() as f32;
@@ -682,7 +682,7 @@ mod evaluation {
     //                                 let query = query.filter(Box::new(column.eq(string)));
     //                                 Ok(PEResult::Filter(query))
     //                             },
-    //                             _ => return Err(anyhow::Error::msg("unable to filter value")),
+    //                             _ => return Err(InternalError::msg("unable to filter value")),
     //                         }
     //                     }
 
@@ -698,7 +698,7 @@ mod evaluation {
     //         }
 
     //         impl Evaluation {
-    //             pub fn parse(&self, input: &PEQueryInput<'_>) -> Result<PEResult, anyhow::Error> {
+    //             pub fn parse(&self, input: &PEQueryInput<'_>) -> Result<PEResult, InternalError> {
     //                 let filters = match self {
     //                     Self::Filter(filters) => filters,
     //                     Self::Accept => return Ok(PEResult::Accept),
@@ -736,7 +736,7 @@ mod evaluation {
     //             use tokio::test;
 
     //             #[test]
-    //             async fn test_filter<D: Db>(db: &D) -> Result<(), anyhow::Error> {
+    //             async fn test_filter<D: Db>(db: &D) -> Result<(), InternalError> {
     //                 let evaluation = Evaluation::Filter(vec![Filter::Equality {
     //                     negated: false,
     //                     left: FilterVar::Unknown(["account".into(), "id".into()]),
@@ -812,7 +812,7 @@ mod evaluation {
     }
 
     impl<'a: 'b, 'b> PEQueryResponseResultSupportRuleCondition<'a> {
-        fn as_operation(&'b self) -> Result<Operation<'a, 'b>, anyhow::Error> {
+        fn as_operation(&'b self) -> Result<Operation<'a, 'b>, InternalError> {
             match &self.terms {
                 PEQueryResponseResultSupportRuleConditionTerms::Scope(
                     PEQueryResponseResultSupportRuleConditionTermsScope {
@@ -823,7 +823,7 @@ mod evaluation {
                     },
                 ) => {
                     if domain.is_none() || key.is_none() || value.is_none() || conditions.is_none() {
-                        return Err(anyhow::Error::msg(format!(
+                        return Err(InternalError::msg(format!(
                             "cannot process scoped condition terms when either key/value/domain/body is none: {self:?}"
                         )));
                     }
@@ -835,7 +835,7 @@ mod evaluation {
                     let key = match key {
                         OPAPolicyASTNode::Var(key) => key,
                         _ => {
-                            return Err(anyhow::Error::msg(format!(
+                            return Err(InternalError::msg(format!(
                                 "unexpected node type for scoped term's key: {self:?}"
                             )))
                         }
@@ -843,7 +843,7 @@ mod evaluation {
                     let value = match value {
                         OPAPolicyASTNode::Var(value) => value,
                         _ => {
-                            return Err(anyhow::Error::msg(format!(
+                            return Err(InternalError::msg(format!(
                                 "unexpected node type for scoped term's value: {self:?}"
                             )))
                         }
@@ -863,7 +863,7 @@ mod evaluation {
                         negated: self.negated,
                         key: term,
                     }),
-                    _ => Err(anyhow::Error::msg(format!(
+                    _ => Err(InternalError::msg(format!(
                         "unsupported single term type for condition: {self:?}"
                     ))),
                 },
@@ -871,7 +871,7 @@ mod evaluation {
                     if let OPAPolicyASTNode::Ref(node_ref) = &terms[0] {
                         let operation_name = format!("{node_ref}");
                         let expected_num_operands = EXPECTED_NUM_OPERANDS.get(&*operation_name).ok_or_else(|| {
-                            anyhow::Error::msg(format!("unsupported condition operation `{operation_name}`: {self:?}"))
+                            InternalError::msg(format!("unsupported condition operation `{operation_name}`: {self:?}"))
                         })?;
                         if terms.len() == expected_num_operands + 1 {
                             match &*operation_name {
@@ -880,7 +880,7 @@ mod evaluation {
                                         if let OPAPolicyASTNode::Var(key) = &terms[1] {
                                             return Ok(Operation::Assignment { value: &terms[2], key });
                                         } else {
-                                            return Err(anyhow::Error::msg(
+                                            return Err(InternalError::msg(
                                                 "expected generated term to be an assignment statement".to_string(),
                                             ));
                                         }
@@ -906,13 +906,13 @@ mod evaluation {
                                     })
                                 }
                                 _ => {
-                                    return Err(anyhow::Error::msg(format!(
+                                    return Err(InternalError::msg(format!(
                                         "unsupported condition operation `{operation_name}`: {self:?}"
                                     )))
                                 }
                             }
                         } else {
-                            return Err(anyhow::Error::msg(format!(
+                            return Err(InternalError::msg(format!(
                                 "unexpected number of operands for operation `{operation_name}`: {self:?}"
                             )));
                         }
@@ -920,7 +920,7 @@ mod evaluation {
                     if let OPAPolicyASTNode::Boolean(bool) = &terms[0] {
                         return Ok(Operation::Boolean(self.negated ^ bool));
                     }
-                    Err(anyhow::Error::msg(format!(
+                    Err(InternalError::msg(format!(
                         "unexpected terms configuration for body: {self:?}"
                     )))
                 }
@@ -1025,7 +1025,7 @@ mod evaluation {
     }
 
     impl FilterVar {
-        fn from(var: &Var<'_, '_>, action: &PEQueryInputAction<'_>) -> Result<Self, anyhow::Error> {
+        fn from(var: &Var<'_, '_>, action: &PEQueryInputAction<'_>) -> Result<Self, InternalError> {
             Ok(match var {
                 Var::AllOver(values) => Self::AllOver(AllOver((*values).clone().into_owned())),
                 Var::AnyOver(var) => Self::AnyOver(AnyOver(Box::new(Self::from(var, action)?))),
@@ -1039,7 +1039,7 @@ mod evaluation {
                         } else if path_nodes.len() > 1 && &path_nodes[0] == "data" {
                             (false, 1)
                         } else {
-                            return Err(anyhow::Error::msg("Unauthorized: unable to process unknown: path does lives in neither data nor input.action.object".to_string()));
+                            return Err(InternalError::msg("Unauthorized: unable to process unknown: path does lives in neither data nor input.action.object".to_string()));
                         }
                     };
 
@@ -1066,7 +1066,7 @@ mod evaluation {
         unknowns: &HashSet<&str>,
         action: &'b PEQueryInputAction<'_>,
         mut var_scope: VarScope<'a, 'b>,
-    ) -> Result<_Evaluation, anyhow::Error> {
+    ) -> Result<_Evaluation, InternalError> {
         if *crate::OPA_DEBUG {
             info!("EVAL");
             info!("{operations:#?}");
@@ -1182,7 +1182,7 @@ mod evaluation {
                                 sub_var_scope.insert(VarKey::String(value), Var::AllOver(Cow::Borrowed(domain_values)))
                             }
                             domain_value => {
-                                return Err(anyhow::Error::msg(format!(
+                                return Err(InternalError::msg(format!(
                                     "Unauthorized: unable to iterate over non-array:\n{domain_value}"
                                 )))
                             }
@@ -1213,7 +1213,7 @@ mod evaluation {
                         if *crate::OPA_DEBUG {
                             info!("{evaluation:#?}");
                         }
-                        return Err(anyhow::Error::msg(format!(
+                        return Err(InternalError::msg(format!(
                             "unable to test set membership for non-value key: {key_value:?}"
                         )));
                     };
@@ -1223,7 +1223,7 @@ mod evaluation {
                         if *crate::OPA_DEBUG {
                             info!("{evaluation:#?}");
                         }
-                        return Err(anyhow::Error::msg(format!(
+                        return Err(InternalError::msg(format!(
                             "unable to test set membership for non-value set: {set_value:?}"
                         )));
                     };
@@ -1256,7 +1256,7 @@ mod evaluation {
                             if *crate::OPA_DEBUG {
                                 info!("{evaluation:#?}");
                             }
-                            return Err(anyhow::Error::msg(format!(
+                            return Err(InternalError::msg(format!(
                                 "unable to test set membership for non array/object set: {set_value:?}"
                             )));
                         }
@@ -1284,7 +1284,7 @@ mod evaluation {
         unknowns: &HashSet<&str>,
         var_scope: &mut VarScope<'a, 'b>,
         node: &'b OPAPolicyASTNode<'a>,
-    ) -> Result<Var<'a, 'b>, anyhow::Error> {
+    ) -> Result<Var<'a, 'b>, InternalError> {
         match node {
             OPAPolicyASTNode::Array(_)
             | OPAPolicyASTNode::Boolean(_)
@@ -1298,7 +1298,7 @@ mod evaluation {
             OPAPolicyASTNode::Var(var) => var_scope
                 .get(&VarKey::String(var))
                 .map(Clone::clone)
-                .ok_or_else(|| anyhow::Error::msg(format!("no variable found in scope with name `{var}`"))),
+                .ok_or_else(|| InternalError::msg(format!("no variable found in scope with name `{var}`"))),
         }
     }
 
@@ -1307,7 +1307,7 @@ mod evaluation {
         unknowns: &HashSet<&str>,
         var_scope: &mut VarScope<'a, 'b>,
         node_ref: Cow<'b, OPAPolicyASTNodeRef<'a>>,
-    ) -> Result<Var<'a, 'b>, anyhow::Error> {
+    ) -> Result<Var<'a, 'b>, InternalError> {
         let var_key = VarKey::Ref(node_ref);
 
         if let Some(value) = var_scope.get(&var_key) {
@@ -1328,7 +1328,7 @@ mod evaluation {
             todo!();
         }
 
-        Err(anyhow::Error::msg(format!("invalid ref node `{node_ref}`")))
+        Err(InternalError::msg(format!("invalid ref node `{node_ref}`")))
     }
 
     fn add_to_scope<'a: 'b, 'b>(
@@ -1367,7 +1367,7 @@ mod tests {
     use tokio::test;
 
     #[test]
-    async fn filter_roles() -> Result<(), anyhow::Error> {
+    async fn filter_roles() -> Result<(), InternalError> {
         let opa_client = OPAClient::test()?;
 
         let evaluation = pe_query(
@@ -1409,7 +1409,7 @@ mod tests {
     }
 
     #[test]
-    async fn filter_accounts() -> Result<(), anyhow::Error> {
+    async fn filter_accounts() -> Result<(), InternalError> {
         let opa_client = OPAClient::test()?;
 
         let evaluation = pe_query(
@@ -1449,7 +1449,7 @@ mod tests {
     }
 
     #[test]
-    async fn filter_role_attachments() -> Result<(), anyhow::Error> {
+    async fn filter_role_attachments() -> Result<(), InternalError> {
         let opa_client = OPAClient::test()?;
 
         let evaluation_is_err = pe_query(
@@ -1483,7 +1483,7 @@ mod tests {
     }
 
     #[test]
-    async fn filter_role_inheritances() -> Result<(), anyhow::Error> {
+    async fn filter_role_inheritances() -> Result<(), InternalError> {
         let opa_client = OPAClient::test()?;
 
         let evaluation_is_err = pe_query(

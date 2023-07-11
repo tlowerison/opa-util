@@ -1,3 +1,4 @@
+use crate::InternalError;
 use float_cmp::approx_eq;
 use serde_json::Value;
 use std::borrow::Cow;
@@ -145,7 +146,7 @@ impl PartialEq for OPAPolicyASTNode<'_> {
 }
 
 impl TryInto<Value> for &OPAPolicyASTNode<'_> {
-    type Error = anyhow::Error;
+    type Error = InternalError;
     fn try_into(self) -> Result<Value, Self::Error> {
         Ok(match self {
             OPAPolicyASTNode::Array(array) => {
@@ -153,24 +154,24 @@ impl TryInto<Value> for &OPAPolicyASTNode<'_> {
             }
             OPAPolicyASTNode::Boolean(bool) => Value::Bool(*bool),
             OPAPolicyASTNode::Call(_) => {
-                return Err(anyhow::Error::msg(
+                return Err(InternalError::msg(
                     "cannot convert opa policy ast `call` node into a json value",
                 ))
             }
             OPAPolicyASTNode::Number(number) => Value::Number(serde_json::Number::from_f64(*number).unwrap()),
             OPAPolicyASTNode::Ref(_) => {
-                return Err(anyhow::Error::msg(
+                return Err(InternalError::msg(
                     "cannot convert opa policy ast `ref` node into a json value",
                 ))
             }
             OPAPolicyASTNode::Set(_) => {
-                return Err(anyhow::Error::msg(
+                return Err(InternalError::msg(
                     "cannot convert opa policy ast `set` node into a json value",
                 ))
             }
             OPAPolicyASTNode::String(string) => Value::String(string.to_string()),
             OPAPolicyASTNode::Var(_) => {
-                return Err(anyhow::Error::msg(
+                return Err(InternalError::msg(
                     "cannot convert opa policy ast `var` node into a json value",
                 ))
             }

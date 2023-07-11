@@ -1,4 +1,4 @@
-use crate::OPA_EXPLAIN;
+use crate::{InternalError, OPA_EXPLAIN};
 use futures::future::try_join_all;
 use hyper::{body::Bytes, http::header::*, Body, Method};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -14,15 +14,15 @@ const DEFAULT_QUERY: &str = "authz";
 pub async fn query_all<'a, Data: Clone + Debug + Send + Serialize + Sync + 'a>(
     opa_client: &crate::OPAClient,
     queries: impl IntoIterator<Item = OPAQuery<'a, Data>>,
-) -> Result<(), anyhow::Error> {
+) -> Result<(), InternalError> {
     let allowed: Vec<OPAQueryResult> = try_join_all(queries.into_iter().map(|query_input| async move {
         let result: OPAQueryResult = query_input.query(opa_client).await?;
-        Ok::<OPAQueryResult, anyhow::Error>(result)
+        Ok::<OPAQueryResult, InternalError>(result)
     }))
     .await?;
 
     if !allowed.into_iter().all(Into::into) {
-        return Err(anyhow::Error::msg("Unauthorized"));
+        return Err(InternalError::msg("Unauthorized"));
     }
 
     Ok(())

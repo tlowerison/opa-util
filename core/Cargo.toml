@@ -5,7 +5,6 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-anyhow.workspace = true
 async-backtrace.workspace = true
 async-recursion.workspace = true
 async-trait.workspace = true
@@ -29,7 +28,9 @@ tracing-opentelemetry.workspace = true
 typed-builder.workspace = true
 uuid.workspace = true
 
+anyhow = { workspace = true, optional = true }
 chrono = { workspace = true, optional = true }
+color-eyre = { workspace = true, optional = true }
 diesel = { workspace = true, optional = true }
 diesel-async = { workspace = true, optional = true }
 diesel-dynamic-schema = { workspace = true, optional = true }
@@ -37,6 +38,9 @@ diesel-util = { workspace = true, optional = true }
 mongodb = { workspace = true, optional = true }
 
 [features]
+default = ["anyhow"]
+anyhow = ["dep:anyhow"]
+color-eyre = ["dep:color-eyre"]
 db = ["diesel", "diesel-async", "diesel-util", "service-util/db"]
 db-filter = ["db", "diesel-dynamic-schema"]
 mongodb-tx-cache-backend = ["dep:chrono", "dep:mongodb"]

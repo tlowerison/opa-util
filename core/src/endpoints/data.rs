@@ -1,3 +1,4 @@
+use crate::InternalError;
 use hyper::{http::header::*, Method};
 use serde_json::Value;
 use service_util::*;
@@ -15,23 +16,23 @@ pub struct GetDocument {
 }
 
 impl GetDocument {
-    pub fn new<E>(path: impl TryInto<std::path::PathBuf, Error = E>) -> Result<Self, anyhow::Error>
+    pub fn new<E>(path: impl TryInto<std::path::PathBuf, Error = E>) -> Result<Self, InternalError>
     where
-        anyhow::Error: From<E>,
+        InternalError: From<E>,
     {
         let path = path.try_into()?;
         if path.is_absolute() {
-            return Err(anyhow::Error::msg("cannot use an absolute path"));
+            return Err(InternalError::msg("cannot use an absolute path"));
         }
         let path = path
             .components()
             .map(|component| match component {
                 std::path::Component::Normal(os_str) => Ok(os_str.to_str().ok_or_else(|| {
-                    anyhow::Error::msg(format!(
+                    InternalError::msg(format!(
                         "could not construct path to submit to request: invalid OsStr path component: {os_str:?}"
                     ))
                 })?),
-                _ => Err(anyhow::Error::msg(
+                _ => Err(InternalError::msg(
                     "path components can only consist of normal text (i.e. no platform specific path info)",
                 )),
             })
@@ -142,23 +143,23 @@ pub struct UpsertDocument {
 }
 
 impl UpsertDocument {
-    pub fn new<E>(path: impl TryInto<std::path::PathBuf, Error = E>, input: Value) -> Result<Self, anyhow::Error>
+    pub fn new<E>(path: impl TryInto<std::path::PathBuf, Error = E>, input: Value) -> Result<Self, InternalError>
     where
-        anyhow::Error: From<E>,
+        InternalError: From<E>,
     {
         let path = path.try_into()?;
         if path.is_absolute() {
-            return Err(anyhow::Error::msg("cannot use an absolute path"));
+            return Err(InternalError::msg("cannot use an absolute path"));
         }
         let path = path
             .components()
             .map(|component| match component {
                 std::path::Component::Normal(os_str) => Ok(os_str.to_str().ok_or_else(|| {
-                    anyhow::Error::msg(format!(
+                    InternalError::msg(format!(
                         "could not construct path to submit to request: invalid OsStr path component: {os_str:?}"
                     ))
                 })?),
-                _ => Err(anyhow::Error::msg(
+                _ => Err(InternalError::msg(
                     "path components can only consist of normal text (i.e. no platform specific path info)",
                 )),
             })
@@ -230,23 +231,23 @@ impl PatchDocument {
     pub fn new<E>(
         path: impl TryInto<std::path::PathBuf, Error = E>,
         inputs: impl IntoIterator<Item = Value>,
-    ) -> Result<Self, anyhow::Error>
+    ) -> Result<Self, InternalError>
     where
-        anyhow::Error: From<E>,
+        InternalError: From<E>,
     {
         let path = path.try_into()?;
         if path.is_absolute() {
-            return Err(anyhow::Error::msg("cannot use an absolute path"));
+            return Err(InternalError::msg("cannot use an absolute path"));
         }
         let path = path
             .components()
             .map(|component| match component {
                 std::path::Component::Normal(os_str) => Ok(os_str.to_str().ok_or_else(|| {
-                    anyhow::Error::msg(format!(
+                    InternalError::msg(format!(
                         "could not construct path to submit to request: invalid OsStr path component: {os_str:?}"
                     ))
                 })?),
-                _ => Err(anyhow::Error::msg(
+                _ => Err(InternalError::msg(
                     "path components can only consist of normal text (i.e. no platform specific path info)",
                 )),
             })
@@ -290,23 +291,23 @@ pub struct DeleteDocument {
 }
 
 impl DeleteDocument {
-    pub fn new<E>(path: impl TryInto<std::path::PathBuf, Error = E>) -> Result<Self, anyhow::Error>
+    pub fn new<E>(path: impl TryInto<std::path::PathBuf, Error = E>) -> Result<Self, InternalError>
     where
-        anyhow::Error: From<E>,
+        InternalError: From<E>,
     {
         let path = path.try_into()?;
         if path.is_absolute() {
-            return Err(anyhow::Error::msg("cannot use an absolute path"));
+            return Err(InternalError::msg("cannot use an absolute path"));
         }
         let path = path
             .components()
             .map(|component| match component {
                 std::path::Component::Normal(os_str) => Ok(os_str.to_str().ok_or_else(|| {
-                    anyhow::Error::msg(format!(
+                    InternalError::msg(format!(
                         "could not construct path to submit to request: invalid OsStr path component: {os_str:?}"
                     ))
                 })?),
-                _ => Err(anyhow::Error::msg(
+                _ => Err(InternalError::msg(
                     "path components can only consist of normal text (i.e. no platform specific path info)",
                 )),
             })

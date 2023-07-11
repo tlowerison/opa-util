@@ -258,7 +258,7 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
     async fn tx_cache_upsert<O>(
         ctx: O,
         entities: impl IntoIterator<Item = impl Into<Self>> + Send,
-    ) -> Result<(), anyhow::Error>
+    ) -> Result<(), InternalError>
     where
         Self: OPAIdentifiable,
         O: OPATxCacheContext,
@@ -269,7 +269,7 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
             if let Err(err) = opa_tx_cache_client.upsert(transaction_id, entities).await {
                 let msg = format!("unable to upsert into tx cache: {err}");
                 error!("{msg}");
-                return Err(anyhow::Error::msg(msg));
+                return Err(InternalError::msg(msg));
             }
         }
         Ok(())
@@ -278,7 +278,7 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
     async fn tx_cache_mark_deleted<O>(
         ctx: O,
         entities: impl IntoIterator<Item = impl Into<Self>> + Send,
-    ) -> Result<(), anyhow::Error>
+    ) -> Result<(), InternalError>
     where
         Self: OPAIdentifiable,
         O: OPATxCacheContext,
@@ -289,7 +289,7 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
             if let Err(err) = opa_tx_cache_client.mark_deleted(transaction_id, entities).await {
                 let msg = format!("unable to mark entities as deleted in tx cache: {err}");
                 error!("{msg}");
-                return Err(anyhow::Error::msg(msg));
+                return Err(InternalError::msg(msg));
             }
         }
         Ok(())
@@ -578,11 +578,11 @@ mod opa_mongodb {
     pub async fn initialize_ttl_index(
         collection: &OPAMongoCollection,
         ttl_duration: impl Into<Option<std::time::Duration>>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<(), InternalError> {
         let ttl_index_exists = collection
             .list_index_names()
             .await
-            .map_err(anyhow::Error::msg)?
+            .map_err(InternalError::msg)?
             .into_iter()
             .any(|index_name| index_name == TTL_INDEX_NAME);
         if !ttl_index_exists {
@@ -606,7 +606,7 @@ mod opa_mongodb {
                     None,
                 )
                 .await
-                .map_err(anyhow::Error::msg)?;
+                .map_err(InternalError::msg)?;
         }
         Ok(())
     }
