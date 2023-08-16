@@ -39,8 +39,8 @@ mongodb = { workspace = true, optional = true }
 
 [features]
 default = ["anyhow"]
-anyhow = ["dep:anyhow"]
-color-eyre = ["dep:color-eyre"]
+anyhow = ["dep:anyhow", "service-util/anyhow"]
+color-eyre = ["dep:color-eyre", "service-util/color-eyre"]
 db = ["diesel", "diesel-async", "diesel-util", "service-util/db"]
 db-filter = ["db", "diesel-dynamic-schema"]
 mongodb-tx-cache-backend = ["dep:chrono", "dep:mongodb"]
