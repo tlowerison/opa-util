@@ -813,7 +813,7 @@ mod db {
             >,
         {
             #[cfg(feature = "tracing")]
-            tracing::Span::current().record_field("Self", std::any::type_name::<Self>());
+            tracing::Span::current().record("Self", std::any::type_name::<Self>());
 
             let db_posts = db_posts.into_iter().map(Into::into).collect::<Vec<_>>();
             if db_posts.is_empty() {
@@ -864,7 +864,7 @@ mod db {
             >,
         {
             #[cfg(feature = "tracing")]
-            tracing::Span::current().record_field("Self", std::any::type_name::<Self>());
+            tracing::Span::current().record("Self", std::any::type_name::<Self>());
 
             let db_post = db_post.into();
             Self::Constructor::can_create(ctx, [&db_post]).await?;
@@ -924,7 +924,7 @@ mod db {
             >,
         {
             #[cfg(feature = "tracing")]
-            tracing::Span::current().record_field("Self", std::any::type_name::<Self>());
+            tracing::Span::current().record("Self", std::any::type_name::<Self>());
 
             let ids = ids.into_iter().collect::<Vec<T>>();
             if ids.is_empty() {
@@ -974,7 +974,7 @@ mod db {
             >,
         {
             #[cfg(feature = "tracing")]
-            tracing::Span::current().record_field("Self", std::any::type_name::<Self>());
+            tracing::Span::current().record("Self", std::any::type_name::<Self>());
 
             let id = *id.borrow();
             Self::can_delete(ctx, [id]).await?;
@@ -1026,7 +1026,7 @@ mod db {
                 LoadQuery<'query, Self::AsyncConnection, DbRecord::Raw> + Send,
         {
             #[cfg(feature = "tracing")]
-            tracing::Span::current().record_field("Self", std::any::type_name::<Self>());
+            tracing::Span::current().record("Self", std::any::type_name::<Self>());
 
             let ids = ids.into_iter().map(|id| id.borrow().clone()).collect::<Vec<_>>();
             if ids.is_empty() {
@@ -1070,7 +1070,7 @@ mod db {
                 LoadQuery<'query, Self::AsyncConnection, DbRecord::Raw> + Send,
         {
             #[cfg(feature = "tracing")]
-            tracing::Span::current().record_field("Self", std::any::type_name::<Self>());
+            tracing::Span::current().record("Self", std::any::type_name::<Self>());
 
             let id = id.borrow().clone();
             Self::can_read(ctx, [id.clone()]).await?;
@@ -1156,7 +1156,7 @@ mod db {
             >,
         {
             #[cfg(feature = "tracing")]
-            tracing::Span::current().record_field("Self", std::any::type_name::<Self>());
+            tracing::Span::current().record("Self", std::any::type_name::<Self>());
 
             let db_patches = db_patches.into_iter().map(Into::into).collect::<Vec<_>>();
             if db_patches.is_empty() {
@@ -1230,7 +1230,7 @@ mod db {
             >,
         {
             #[cfg(feature = "tracing")]
-            tracing::Span::current().record_field("Self", std::any::type_name::<Self>());
+            tracing::Span::current().record("Self", std::any::type_name::<Self>());
 
             let db_patch = db_patch.into();
             Self::can_update(ctx, [&db_patch]).await?;
