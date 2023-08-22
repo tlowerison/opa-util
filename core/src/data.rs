@@ -178,6 +178,9 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
         ctx: &Ctx,
         records: impl Debug + IntoIterator<Item = impl Into<Self> + Send> + Send,
     ) -> Result<(), Error> {
+        #[cfg(feature = "tracing")]
+        tracing::Span::current().record("Self", std::any::type_name::<Self>());
+
         let records = records.into_iter().collect::<Vec<_>>();
         if records.is_empty() {
             return Ok(());
@@ -191,6 +194,9 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
         ctx: &Ctx,
         ids: impl Debug + IntoIterator<Item = impl Borrow<Uuid> + Send> + Send,
     ) -> Result<(), Error> {
+        #[cfg(feature = "tracing")]
+        tracing::Span::current().record("Self", std::any::type_name::<Self>());
+
         let ids = ids.into_iter().collect::<Vec<_>>();
         if ids.is_empty() {
             return Ok(());
@@ -204,6 +210,9 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
         ctx: &Ctx,
         ids: impl Debug + IntoIterator<Item = impl Borrow<Uuid> + Send> + Send,
     ) -> Result<(), Error> {
+        #[cfg(feature = "tracing")]
+        tracing::Span::current().record("Self", std::any::type_name::<Self>());
+
         let ids = ids.into_iter().collect::<Vec<_>>();
         if ids.is_empty() {
             return Ok(());
@@ -217,6 +226,9 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
         ctx: &Ctx,
         patches: impl Debug + IntoIterator<Item = impl Debug + Into<Self::Patch<'_>> + Send> + Send,
     ) -> Result<(), Error> {
+        #[cfg(feature = "tracing")]
+        tracing::Span::current().record("Self", std::any::type_name::<Self>());
+
         let patches = patches.into_iter().collect::<Vec<_>>();
         if patches.is_empty() {
             return Ok(());
@@ -228,6 +240,9 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
     // TODO: unfinished
     #[cfg_attr(feature = "tracing", instrument(err(Debug), skip(ctx)))]
     async fn filter<Ctx: OPAContext + OPATxCacheContext>(ctx: &Ctx) -> Result<(), Error> {
+        #[cfg(feature = "tracing")]
+        tracing::Span::current().record("Self", std::any::type_name::<Self>());
+
         let account_session = ctx.account_session();
         let _evaluation = pe_query(
             ctx.opa_client(),
