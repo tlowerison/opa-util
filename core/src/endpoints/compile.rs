@@ -137,9 +137,13 @@ impl Endpoint for PEQuery<'_> {
     fn body(&self) -> Body {
         let body = PEQueryBody::from(self);
         let body = serde_json::to_string(&body).unwrap();
-        if *crate::OPA_DEBUG {
-            info!("OPA Request: {}", self.path());
-            info!("{body}");
+        cfg_if! {
+            if #[cfg(feature = "tracing")] {
+                if *crate::OPA_DEBUG {
+                    info!("OPA Request: {}", self.path());
+                    info!("{body}");
+                }
+            }
         }
         Body::from(Bytes::copy_from_slice(body.as_bytes()))
     }
@@ -246,15 +250,18 @@ mod evaluation {
         let response = query.raw().query(opa_client).await?;
         let bytes = response.body();
 
-        let value: Value = serde_json::from_slice(bytes).map_err(|err| {
-            InternalError::msg(format!(
-                "{err}:\n{}",
-                serde_json::to_string_pretty(&serde_json::from_slice::<Value>(bytes).unwrap()).unwrap()
-            ))
-        })?;
-
-        info!("RESPONSE");
-        info!("{value}");
+        cfg_if! {
+            if #[cfg(feature = "tracing")] {
+                let value: Value = serde_json::from_slice(bytes).map_err(|err| {
+                    InternalError::msg(format!(
+                        "{err}:\n{}",
+                        serde_json::to_string_pretty(&serde_json::from_slice::<Value>(bytes).unwrap()).unwrap()
+                    ))
+                })?;
+                info!("RESPONSE");
+                info!("{value}");
+            }
+        }
 
         let PEQueryResponse { result } = serde_json::from_slice(bytes).map_err(|err| {
             InternalError::msg(format!(
@@ -432,8 +439,12 @@ mod evaluation {
         }))
         .await?;
 
-        if *crate::OPA_DEBUG {
-            info!("{authz:#?}");
+        cfg_if! {
+            if #[cfg(feature = "tracing")] {
+                if *crate::OPA_DEBUG {
+                    info!("{authz:#?}");
+                }
+            }
         }
 
         let authz = authz.into_iter().fold(_Evaluation::Reject, |acc, eval| acc.or(eval));
@@ -1067,9 +1078,13 @@ mod evaluation {
         action: &'b PEQueryInputAction<'_>,
         mut var_scope: VarScope<'a, 'b>,
     ) -> Result<_Evaluation, InternalError> {
-        if *crate::OPA_DEBUG {
-            info!("EVAL");
-            info!("{operations:#?}");
+        cfg_if! {
+            if #[cfg(feature = "tracing")] {
+                if *crate::OPA_DEBUG {
+                    info!("EVAL");
+                    info!("{operations:#?}");
+                }
+            }
         }
 
         if operations.is_empty() {
@@ -1080,8 +1095,12 @@ mod evaluation {
         let mut evaluation = LogicalOp::And.default_evaluation();
 
         for operation in operations {
-            if *crate::OPA_DEBUG {
-                info!("{var_scope:#?}");
+            cfg_if! {
+                if #[cfg(feature = "tracing")] {
+                    if *crate::OPA_DEBUG {
+                        info!("{var_scope:#?}");
+                    }
+                }
             }
             match operation {
                 Operation::Assignment { key, value } => {
@@ -1122,8 +1141,12 @@ mod evaluation {
                     let right_value = get_value_in_scope(opa_client, unknowns, &mut var_scope, right).await?;
 
                     if left_value.is_unknown() || right_value.is_unknown() {
-                        if *crate::OPA_DEBUG {
-                            info!("UNKNOWN: {left_value:?} OR {right_value:?}");
+                        cfg_if! {
+                            if #[cfg(feature = "tracing")] {
+                                if *crate::OPA_DEBUG {
+                                    info!("UNKNOWN: {left_value:?} OR {right_value:?}");
+                                }
+                            }
                         }
                         evaluation = evaluation.and(_Evaluation::Filter(vec![Filter::Equality {
                             negated: *negated,
@@ -1133,9 +1156,13 @@ mod evaluation {
                     } else if *negated ^ (left_value == right_value) {
                         evaluation = evaluation.and(_Evaluation::Accept);
                     } else {
-                        if *crate::OPA_DEBUG {
-                            info!("EVAL: REJECT (0)");
-                            info!("{evaluation:#?}");
+                        cfg_if! {
+                            if #[cfg(feature = "tracing")] {
+                                if *crate::OPA_DEBUG {
+                                    info!("EVAL: REJECT (0)");
+                                    info!("{evaluation:#?}");
+                                }
+                            }
                         }
                         return Ok(false.into());
                     }
@@ -1146,9 +1173,13 @@ mod evaluation {
                         .await
                         .is_ok();
                     if (*negated && exists) || (!*negated && !exists) {
-                        if *crate::OPA_DEBUG {
-                            info!("EVAL: REJECT (1)");
-                            info!("{evaluation:#?}");
+                        cfg_if! {
+                            if #[cfg(feature = "tracing")] {
+                                if *crate::OPA_DEBUG {
+                                    info!("EVAL: REJECT (1)");
+                                    info!("{evaluation:#?}");
+                                }
+                            }
                         }
                         return Ok(false.into());
                     }
@@ -1162,9 +1193,13 @@ mod evaluation {
                 } => {
                     num_assertions += 1;
                     if operations.is_empty() {
-                        if *crate::OPA_DEBUG {
-                            info!("EVAL: REJECT (2)");
-                            info!("{evaluation:#?}");
+                        cfg_if! {
+                            if #[cfg(feature = "tracing")] {
+                                if *crate::OPA_DEBUG {
+                                    info!("EVAL: REJECT (2)");
+                                    info!("{evaluation:#?}");
+                                }
+                            }
                         }
                         return Ok(false.into());
                     }
@@ -1210,8 +1245,12 @@ mod evaluation {
                     let key_value = if let Var::Value(key_value) = key_value {
                         key_value
                     } else {
-                        if *crate::OPA_DEBUG {
-                            info!("{evaluation:#?}");
+                        cfg_if! {
+                            if #[cfg(feature = "tracing")] {
+                                if *crate::OPA_DEBUG {
+                                    info!("{evaluation:#?}");
+                                }
+                            }
                         }
                         return Err(InternalError::msg(format!(
                             "unable to test set membership for non-value key: {key_value:?}"
@@ -1220,8 +1259,12 @@ mod evaluation {
                     let set_value = if let Var::Value(set_value) = set_value {
                         set_value
                     } else {
-                        if *crate::OPA_DEBUG {
-                            info!("{evaluation:#?}");
+                        cfg_if! {
+                            if #[cfg(feature = "tracing")] {
+                                if *crate::OPA_DEBUG {
+                                    info!("{evaluation:#?}");
+                                }
+                            }
                         }
                         return Err(InternalError::msg(format!(
                             "unable to test set membership for non-value set: {set_value:?}"
@@ -1232,9 +1275,13 @@ mod evaluation {
                         Value::Array(array) => {
                             for item in array {
                                 if *negated ^ (key_value.as_ref() == item) {
-                                    if *crate::OPA_DEBUG {
-                                        info!("EVAL: REJECT (3)");
-                                        info!("{evaluation:#?}");
+                                    cfg_if! {
+                                        if #[cfg(feature = "tracing")] {
+                                            if *crate::OPA_DEBUG {
+                                                info!("EVAL: REJECT (3)");
+                                                info!("{evaluation:#?}");
+                                            }
+                                        }
                                     }
                                     return Ok(false.into());
                                 }
@@ -1244,17 +1291,25 @@ mod evaluation {
                             for key in object.keys() {
                                 // TODO: confirm whether key membership or value membership is how this should proceed
                                 if *negated ^ (key_value.as_ref() == key) {
-                                    if *crate::OPA_DEBUG {
-                                        info!("EVAL: REJECT (4)");
-                                        info!("{evaluation:#?}");
+                                    cfg_if! {
+                                        if #[cfg(feature = "tracing")] {
+                                            if *crate::OPA_DEBUG {
+                                                info!("EVAL: REJECT (4)");
+                                                info!("{evaluation:#?}");
+                                            }
+                                        }
                                     }
                                     return Ok(false.into());
                                 }
                             }
                         }
                         _ => {
-                            if *crate::OPA_DEBUG {
-                                info!("{evaluation:#?}");
+                            cfg_if! {
+                                if #[cfg(feature = "tracing")] {
+                                    if *crate::OPA_DEBUG {
+                                        info!("{evaluation:#?}");
+                                    }
+                                }
                             }
                             return Err(InternalError::msg(format!(
                                 "unable to test set membership for non array/object set: {set_value:?}"
@@ -1266,15 +1321,23 @@ mod evaluation {
         }
 
         if num_assertions == 0 {
-            if *crate::OPA_DEBUG {
-                info!("EVAL: REJECT (5)");
-                info!("{evaluation:#?}");
+            cfg_if! {
+                if #[cfg(feature = "tracing")] {
+                    if *crate::OPA_DEBUG {
+                        info!("EVAL: REJECT (5)");
+                        info!("{evaluation:#?}");
+                    }
+                }
             }
             return Ok(positive.into());
         }
 
-        if *crate::OPA_DEBUG {
-            info!("{evaluation:#?}");
+        cfg_if! {
+            if #[cfg(feature = "tracing")] {
+                if *crate::OPA_DEBUG {
+                    info!("{evaluation:#?}");
+                }
+            }
         }
         Ok(evaluation)
     }

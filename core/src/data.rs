@@ -173,7 +173,7 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
             .build()
     }
 
-    #[instrument(err(Debug), skip(ctx, records))]
+    #[cfg_attr(feature = "tracing", instrument(err(Debug), skip(ctx, records)))]
     async fn can_create<Ctx: OPAContext + OPATxCacheContext>(
         ctx: &Ctx,
         records: impl Debug + IntoIterator<Item = impl Into<Self> + Send> + Send,
@@ -186,7 +186,7 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
         allowed.ok_or_else(|| Error::bad_request_msg("Unauthorized"))
     }
 
-    #[instrument(err(Debug), skip(ctx, ids))]
+    #[cfg_attr(feature = "tracing", instrument(err(Debug), skip(ctx, ids)))]
     async fn can_delete<Ctx: OPAContext + OPATxCacheContext>(
         ctx: &Ctx,
         ids: impl Debug + IntoIterator<Item = impl Borrow<Uuid> + Send> + Send,
@@ -199,7 +199,7 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
         allowed.ok_or_else(|| Error::bad_request_msg("Unauthorized"))
     }
 
-    #[instrument(err(Debug), skip(ctx, ids))]
+    #[cfg_attr(feature = "tracing", instrument(err(Debug), skip(ctx, ids)))]
     async fn can_read<Ctx: OPAContext + OPATxCacheContext>(
         ctx: &Ctx,
         ids: impl Debug + IntoIterator<Item = impl Borrow<Uuid> + Send> + Send,
@@ -212,7 +212,7 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
         allowed.ok_or_else(|| Error::bad_request_msg("Unauthorized"))
     }
 
-    #[instrument(err(Debug), skip(ctx, patches))]
+    #[cfg_attr(feature = "tracing", instrument(err(Debug), skip(ctx, patches)))]
     async fn can_update<Ctx: OPAContext + OPATxCacheContext>(
         ctx: &Ctx,
         patches: impl Debug + IntoIterator<Item = impl Debug + Into<Self::Patch<'_>> + Send> + Send,
@@ -226,10 +226,10 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
     }
 
     // TODO: unfinished
-    #[instrument(err(Debug), skip(ctx))]
+    #[cfg_attr(feature = "tracing", instrument(err(Debug), skip(ctx)))]
     async fn filter<Ctx: OPAContext + OPATxCacheContext>(ctx: &Ctx) -> Result<(), Error> {
         let account_session = ctx.account_session();
-        let evaluation = pe_query(
+        let _evaluation = pe_query(
             ctx.opa_client(),
             PEQuery::builder()
                 .explain(OPA_EXPLAIN.as_ref().map(|x| &**x))
@@ -250,7 +250,8 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
         .await
         .map_err(Error::bad_request_details);
 
-        info!("{evaluation:#?}");
+        #[cfg(feature = "tracing")]
+        info!("{_evaluation:#?}");
 
         Ok(())
     }
@@ -268,6 +269,7 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
             let opa_tx_cache_client = ctx.opa_tx_cache_client();
             if let Err(err) = opa_tx_cache_client.upsert(transaction_id, entities).await {
                 let msg = format!("unable to upsert into tx cache: {err}");
+                #[cfg(feature = "tracing")]
                 error!("{msg}");
                 return Err(InternalError::msg(msg));
             }
@@ -288,6 +290,7 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
             let opa_tx_cache_client = ctx.opa_tx_cache_client();
             if let Err(err) = opa_tx_cache_client.mark_deleted(transaction_id, entities).await {
                 let msg = format!("unable to mark entities as deleted in tx cache: {err}");
+                #[cfg(feature = "tracing")]
                 error!("{msg}");
                 return Err(InternalError::msg(msg));
             }
@@ -616,13 +619,17 @@ mod opa_mongodb {
         type Error = Error;
 
         #[framed]
-        #[instrument(err(Debug), skip(self), ret)]
+        #[cfg_attr(feature = "tracing", instrument(err(Debug), skip(self), ret))]
         async fn get_entities<T: AuthzServiceEntity + DeserializeOwned>(
             &self,
             transaction_id: Uuid,
         ) -> Result<HashMap<Uuid, OPATxEntity<T>>, Self::Error> {
-            instrument_field!("service", T::Service::NAME);
-            instrument_field!("entity", T::NAME);
+            cfg_if! {
+                if #[cfg(feature = "tracing")] {
+                    instrument_field!("service", T::Service::NAME);
+                    instrument_field!("entity", T::NAME);
+                }
+            }
             let pipeline = group_pipeline::<T>(transaction_id, None);
             let mut cursor = self.aggregate(pipeline, None).await.map_err(Error::default_details)?;
 
@@ -636,14 +643,18 @@ mod opa_mongodb {
         }
 
         #[framed]
-        #[instrument(err(Debug), skip(self, ids))]
+        #[cfg_attr(feature = "tracing", instrument(err(Debug), skip(self, ids)))]
         async fn get_by_ids<T: AuthzServiceEntity + DeserializeOwned>(
             &self,
             transaction_id: Uuid,
             ids: &[Uuid],
         ) -> Result<Vec<T>, Self::Error> {
-            instrument_field!("service", T::Service::NAME);
-            instrument_field!("entity", T::NAME);
+            cfg_if! {
+                if #[cfg(feature = "tracing")] {
+                    instrument_field!("service", T::Service::NAME);
+                    instrument_field!("entity", T::NAME);
+                }
+            }
             let mut cursor = self
                 .aggregate(group_pipeline::<T>(transaction_id, ids), None)
                 .await
@@ -660,14 +671,18 @@ mod opa_mongodb {
         }
 
         #[framed]
-        #[instrument(err(Debug), skip(self, entities))]
+        #[cfg_attr(feature = "tracing", instrument(err(Debug), skip(self, entities)))]
         async fn upsert<T: AuthzServiceEntity + OPAIdentifiable>(
             &self,
             transaction_id: Uuid,
             entities: impl IntoIterator<Item = impl Borrow<T> + Send> + Send,
         ) -> Result<(), Self::Error> {
-            instrument_field!("service", T::Service::NAME);
-            instrument_field!("entity", T::NAME);
+            cfg_if! {
+                if #[cfg(feature = "tracing")] {
+                    instrument_field!("service", T::Service::NAME);
+                    instrument_field!("entity", T::NAME);
+                }
+            }
             let entity_fulls = entities
                 .into_iter()
                 .map(|entity| serialize_entity(transaction_id, entity))
@@ -680,14 +695,18 @@ mod opa_mongodb {
         }
 
         #[framed]
-        #[instrument(err(Debug), skip(self, entities))]
+        #[cfg_attr(feature = "tracing", instrument(err(Debug), skip(self, entities)))]
         async fn mark_deleted<T: AuthzServiceEntity + OPAIdentifiable>(
             &self,
             transaction_id: Uuid,
             entities: impl IntoIterator<Item = impl Borrow<T> + Send> + Send,
         ) -> Result<(), Self::Error> {
-            instrument_field!("service", T::Service::NAME);
-            instrument_field!("entity", T::NAME);
+            cfg_if! {
+                if #[cfg(feature = "tracing")] {
+                    instrument_field!("service", T::Service::NAME);
+                    instrument_field!("entity", T::NAME);
+                }
+            }
             let entity_fulls = entities
                 .into_iter()
                 .map(|entity| serialize_entity(transaction_id, entity))
@@ -753,7 +772,7 @@ mod db {
         for<'a> &'a DbRecord: Into<Self::Constructor<'a>>,
     {
         #[framed]
-        #[instrument(err(Debug), skip_all)]
+        #[cfg_attr(feature = "tracing", instrument(err(Debug), skip_all))]
         async fn try_create<Op>(
             ctx: &Ctx,
             db_posts: impl IntoIterator<Item = impl Into<Self::DbPost<'v>>> + Send + 'v,
@@ -793,6 +812,9 @@ mod db {
                 Output = diesel::expression::is_aggregate::No,
             >,
         {
+            #[cfg(feature = "tracing")]
+            tracing::Span::current().record_field("Self", std::any::type_name::<Self>());
+
             let db_posts = db_posts.into_iter().map(Into::into).collect::<Vec<_>>();
             if db_posts.is_empty() {
                 return Ok(vec![]);
@@ -804,7 +826,7 @@ mod db {
         }
 
         #[framed]
-        #[instrument(err(Debug), skip_all)]
+        #[cfg_attr(feature = "tracing", instrument(err(Debug), skip_all))]
         async fn try_create_one<Op>(ctx: &Ctx, db_post: impl Into<Self::DbPost<'v>> + Send) -> Result<DbRecord, Error>
         where
             Self: 'v,
@@ -841,6 +863,9 @@ mod db {
                 Output = diesel::expression::is_aggregate::No,
             >,
         {
+            #[cfg(feature = "tracing")]
+            tracing::Span::current().record_field("Self", std::any::type_name::<Self>());
+
             let db_post = db_post.into();
             Self::Constructor::can_create(ctx, [&db_post]).await?;
             let record = DbRecord::insert(ctx, [db_post])
@@ -865,7 +890,7 @@ mod db {
         for<'a> &'a DbRecord: Into<Self::Constructor<'a>>,
     {
         #[framed]
-        #[instrument(err(Debug), skip_all)]
+        #[cfg_attr(feature = "tracing", instrument(err(Debug), skip_all))]
         async fn try_delete<T>(
             ctx: &Ctx,
             ids: impl IntoIterator<Item = T> + Send + 'v,
@@ -898,6 +923,9 @@ mod db {
                 DbRecord::Selection,
             >,
         {
+            #[cfg(feature = "tracing")]
+            tracing::Span::current().record_field("Self", std::any::type_name::<Self>());
+
             let ids = ids.into_iter().collect::<Vec<T>>();
             if ids.is_empty() {
                 return Ok(vec![]);
@@ -915,7 +943,7 @@ mod db {
         }
 
         #[framed]
-        #[instrument(err(Debug), skip_all)]
+        #[cfg_attr(feature = "tracing", instrument(err(Debug), skip_all))]
         async fn try_delete_one<T, F>(ctx: &Ctx, id: T) -> Result<Option<Self::DbRecord>, Error>
         where
             Ctx: 'query,
@@ -945,6 +973,9 @@ mod db {
                 DbRecord::Selection,
             >,
         {
+            #[cfg(feature = "tracing")]
+            tracing::Span::current().record_field("Self", std::any::type_name::<Self>());
+
             let id = *id.borrow();
             Self::can_delete(ctx, [id]).await?;
             let mut records = DbRecord::delete(ctx, [id.into()]).await?;
@@ -962,7 +993,7 @@ mod db {
         DbRecord: Send + Sync,
     {
         #[framed]
-        #[instrument(err(Debug), skip_all)]
+        #[cfg_attr(feature = "tracing", instrument(err(Debug), skip_all))]
         async fn try_read<F>(
             ctx: &Ctx,
             ids: impl IntoIterator<Item = impl Borrow<DbRecord::Id>> + Send,
@@ -994,6 +1025,9 @@ mod db {
             <F as IsNotDeleted<'query, Self::AsyncConnection, DbRecord::Raw, DbRecord::Raw>>::IsNotDeletedFilter:
                 LoadQuery<'query, Self::AsyncConnection, DbRecord::Raw> + Send,
         {
+            #[cfg(feature = "tracing")]
+            tracing::Span::current().record_field("Self", std::any::type_name::<Self>());
+
             let ids = ids.into_iter().map(|id| id.borrow().clone()).collect::<Vec<_>>();
             if ids.is_empty() {
                 return Ok(vec![]);
@@ -1003,7 +1037,7 @@ mod db {
         }
 
         #[framed]
-        #[instrument(err(Debug), skip_all)]
+        #[cfg_attr(feature = "tracing", instrument(err(Debug), skip_all))]
         async fn try_read_one<F>(
             ctx: &Ctx,
             id: impl Borrow<DbRecord::Id> + Debug + Send + Sync,
@@ -1035,6 +1069,9 @@ mod db {
             <F as IsNotDeleted<'query, Self::AsyncConnection, DbRecord::Raw, DbRecord::Raw>>::IsNotDeletedFilter:
                 LoadQuery<'query, Self::AsyncConnection, DbRecord::Raw> + Send,
         {
+            #[cfg(feature = "tracing")]
+            tracing::Span::current().record_field("Self", std::any::type_name::<Self>());
+
             let id = id.borrow().clone();
             Self::can_read(ctx, [id.clone()]).await?;
             Ok(DbRecord::get_one(ctx, id).await?)
@@ -1055,7 +1092,7 @@ mod db {
         for<'a> &'a DbRecord: Into<Self::Constructor<'a>>,
     {
         #[framed]
-        #[instrument(err(Debug), skip_all)]
+        #[cfg_attr(feature = "tracing", instrument(err(Debug), skip_all))]
         async fn try_update<F>(
             ctx: &Ctx,
             db_patches: impl IntoIterator<Item = impl Into<Self::DbPatch<'v>>> + Send + 'v,
@@ -1118,6 +1155,9 @@ mod db {
                 Output = diesel::expression::is_aggregate::No,
             >,
         {
+            #[cfg(feature = "tracing")]
+            tracing::Span::current().record_field("Self", std::any::type_name::<Self>());
+
             let db_patches = db_patches.into_iter().map(Into::into).collect::<Vec<_>>();
             if db_patches.is_empty() {
                 return Ok(vec![]);
@@ -1129,7 +1169,7 @@ mod db {
         }
 
         #[framed]
-        #[instrument(err(Debug), skip_all)]
+        #[cfg_attr(feature = "tracing", instrument(err(Debug), skip_all))]
         async fn try_update_one<F>(ctx: &Ctx, db_patch: impl Into<Self::DbPatch<'v>> + Send) -> Result<DbRecord, Error>
         where
             Self: 'v,
@@ -1189,6 +1229,9 @@ mod db {
                 Output = diesel::expression::is_aggregate::No,
             >,
         {
+            #[cfg(feature = "tracing")]
+            tracing::Span::current().record_field("Self", std::any::type_name::<Self>());
+
             let db_patch = db_patch.into();
             Self::can_update(ctx, [&db_patch]).await?;
             let record = DbRecord::update_one(ctx, db_patch).await?;

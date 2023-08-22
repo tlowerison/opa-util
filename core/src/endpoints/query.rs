@@ -116,9 +116,13 @@ impl<Data: Clone + Serialize> Endpoint for OPAQuery<'_, Data> {
     }
     fn body(&self) -> Body {
         let body = serde_json::to_string(&self).unwrap();
-        if *crate::OPA_DEBUG {
-            info!("OPA Request: {}", self.path());
-            info!("{body}");
+        cfg_if! {
+            if #[cfg(feature = "tracing")] {
+                if *crate::OPA_DEBUG {
+                    info!("OPA Request: {}", self.path());
+                    info!("{body}");
+                }
+            }
         }
         Body::from(Bytes::copy_from_slice(body.as_bytes()))
     }

@@ -33,9 +33,11 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_with;
 #[macro_use]
-extern crate tracing;
-#[macro_use]
 extern crate typed_builder;
+
+#[cfg(feature = "tracing")]
+#[macro_use]
+extern crate tracing;
 
 mod data;
 mod endpoints;

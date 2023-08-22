@@ -23,8 +23,6 @@ serde_with.workspace = true
 service-util = { workspace = true, features = ["client"] }
 session-util.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
-tracing.workspace = true
-tracing-opentelemetry.workspace = true
 typed-builder.workspace = true
 uuid.workspace = true
 
@@ -36,6 +34,8 @@ diesel-async = { workspace = true, optional = true }
 diesel-dynamic-schema = { workspace = true, optional = true }
 diesel-util = { workspace = true, optional = true }
 mongodb = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
+tracing-opentelemetry = { workspace = true, optional = true }
 
 [features]
 default = ["anyhow"]
@@ -44,3 +44,4 @@ color-eyre = ["dep:color-eyre", "service-util/color-eyre"]
 db = ["diesel", "diesel-async", "diesel-util", "service-util/db"]
 db-filter = ["db", "diesel-dynamic-schema"]
 mongodb-tx-cache-backend = ["dep:chrono", "dep:mongodb"]
+tracing = ["dep:tracing", "dep:tracing-opentelemetry", "diesel-util/tracing", "service-util/tracing"]
