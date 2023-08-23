@@ -173,7 +173,7 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
             .build()
     }
 
-    #[cfg_attr(feature = "tracing", instrument(err(Debug), skip(ctx, records)))]
+    #[cfg_attr(feature = "tracing", instrument(err(Debug), fields(Self), skip(ctx, records)))]
     async fn can_create<Ctx: OPAContext + OPATxCacheContext>(
         ctx: &Ctx,
         records: impl Debug + IntoIterator<Item = impl Into<Self> + Send> + Send,
@@ -189,7 +189,7 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
         allowed.ok_or_else(|| Error::bad_request_msg("Unauthorized"))
     }
 
-    #[cfg_attr(feature = "tracing", instrument(err(Debug), skip(ctx, ids)))]
+    #[cfg_attr(feature = "tracing", instrument(err(Debug), fields(Self), skip(ctx, ids)))]
     async fn can_delete<Ctx: OPAContext + OPATxCacheContext>(
         ctx: &Ctx,
         ids: impl Debug + IntoIterator<Item = impl Borrow<Uuid> + Send> + Send,
@@ -205,7 +205,7 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
         allowed.ok_or_else(|| Error::bad_request_msg("Unauthorized"))
     }
 
-    #[cfg_attr(feature = "tracing", instrument(err(Debug), skip(ctx, ids)))]
+    #[cfg_attr(feature = "tracing", instrument(err(Debug), fields(Self), skip(ctx, ids)))]
     async fn can_read<Ctx: OPAContext + OPATxCacheContext>(
         ctx: &Ctx,
         ids: impl Debug + IntoIterator<Item = impl Borrow<Uuid> + Send> + Send,
@@ -221,7 +221,7 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
         allowed.ok_or_else(|| Error::bad_request_msg("Unauthorized"))
     }
 
-    #[cfg_attr(feature = "tracing", instrument(err(Debug), skip(ctx, patches)))]
+    #[cfg_attr(feature = "tracing", instrument(err(Debug), fields(Self), skip(ctx, patches)))]
     async fn can_update<Ctx: OPAContext + OPATxCacheContext>(
         ctx: &Ctx,
         patches: impl Debug + IntoIterator<Item = impl Debug + Into<Self::Patch<'_>> + Send> + Send,
@@ -238,7 +238,7 @@ pub trait AuthzServiceEntity: Clone + Debug + Send + Sized + Serialize + Sync {
     }
 
     // TODO: unfinished
-    #[cfg_attr(feature = "tracing", instrument(err(Debug), skip(ctx)))]
+    #[cfg_attr(feature = "tracing", instrument(err(Debug), fields(Self), skip(ctx)))]
     async fn filter<Ctx: OPAContext + OPATxCacheContext>(ctx: &Ctx) -> Result<(), Error> {
         #[cfg(feature = "tracing")]
         tracing::Span::current().record("Self", std::any::type_name::<Self>());
@@ -787,7 +787,7 @@ mod db {
         for<'a> &'a DbRecord: Into<Self::Constructor<'a>>,
     {
         #[framed]
-        #[cfg_attr(feature = "tracing", instrument(err(Debug), skip_all))]
+        #[cfg_attr(feature = "tracing", instrument(err(Debug), fields(Self), skip_all))]
         async fn try_create<Op>(
             ctx: &Ctx,
             db_posts: impl IntoIterator<Item = impl Into<Self::DbPost<'v>>> + Send + 'v,
@@ -841,7 +841,7 @@ mod db {
         }
 
         #[framed]
-        #[cfg_attr(feature = "tracing", instrument(err(Debug), skip_all))]
+        #[cfg_attr(feature = "tracing", instrument(err(Debug), fields(Self), skip_all))]
         async fn try_create_one<Op>(ctx: &Ctx, db_post: impl Into<Self::DbPost<'v>> + Send) -> Result<DbRecord, Error>
         where
             Self: 'v,
@@ -905,7 +905,7 @@ mod db {
         for<'a> &'a DbRecord: Into<Self::Constructor<'a>>,
     {
         #[framed]
-        #[cfg_attr(feature = "tracing", instrument(err(Debug), skip_all))]
+        #[cfg_attr(feature = "tracing", instrument(err(Debug), fields(Self), skip_all))]
         async fn try_delete<T>(
             ctx: &Ctx,
             ids: impl IntoIterator<Item = T> + Send + 'v,
@@ -958,7 +958,7 @@ mod db {
         }
 
         #[framed]
-        #[cfg_attr(feature = "tracing", instrument(err(Debug), skip_all))]
+        #[cfg_attr(feature = "tracing", instrument(err(Debug), fields(Self), skip_all))]
         async fn try_delete_one<T, F>(ctx: &Ctx, id: T) -> Result<Option<Self::DbRecord>, Error>
         where
             Ctx: 'query,
@@ -1008,7 +1008,7 @@ mod db {
         DbRecord: Send + Sync,
     {
         #[framed]
-        #[cfg_attr(feature = "tracing", instrument(err(Debug), skip_all))]
+        #[cfg_attr(feature = "tracing", instrument(err(Debug), fields(Self), skip_all))]
         async fn try_read<F>(
             ctx: &Ctx,
             ids: impl IntoIterator<Item = impl Borrow<DbRecord::Id>> + Send,
@@ -1052,7 +1052,7 @@ mod db {
         }
 
         #[framed]
-        #[cfg_attr(feature = "tracing", instrument(err(Debug), skip_all))]
+        #[cfg_attr(feature = "tracing", instrument(err(Debug), fields(Self), skip_all))]
         async fn try_read_one<F>(
             ctx: &Ctx,
             id: impl Borrow<DbRecord::Id> + Debug + Send + Sync,
@@ -1107,7 +1107,7 @@ mod db {
         for<'a> &'a DbRecord: Into<Self::Constructor<'a>>,
     {
         #[framed]
-        #[cfg_attr(feature = "tracing", instrument(err(Debug), skip_all))]
+        #[cfg_attr(feature = "tracing", instrument(err(Debug), fields(Self), skip_all))]
         async fn try_update<F>(
             ctx: &Ctx,
             db_patches: impl IntoIterator<Item = impl Into<Self::DbPatch<'v>>> + Send + 'v,
@@ -1184,7 +1184,7 @@ mod db {
         }
 
         #[framed]
-        #[cfg_attr(feature = "tracing", instrument(err(Debug), skip_all))]
+        #[cfg_attr(feature = "tracing", instrument(err(Debug), fields(Self), skip_all))]
         async fn try_update_one<F>(ctx: &Ctx, db_patch: impl Into<Self::DbPatch<'v>> + Send) -> Result<DbRecord, Error>
         where
             Self: 'v,
