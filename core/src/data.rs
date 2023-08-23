@@ -926,7 +926,7 @@ mod db {
             <DbRecord::Table as Table>::PrimaryKey: Expression + ExpressionMethods,
             <<DbRecord::Table as Table>::PrimaryKey as Expression>::SqlType: SqlType,
 
-            for<'a> DbRecord::DeletePatch<'a>: Send,
+            for<'a> DbRecord::DeletePatch<'a>: Debug + Send,
             DbRecord::Raw: for<'a> Deletable<
                 'query,
                 Self::AsyncConnection,
@@ -976,7 +976,7 @@ mod db {
             <DbRecord::Table as Table>::PrimaryKey: Expression + ExpressionMethods,
             <<DbRecord::Table as Table>::PrimaryKey as Expression>::SqlType: SqlType,
 
-            for<'a> DbRecord::DeletePatch<'a>: Send,
+            for<'a> DbRecord::DeletePatch<'a>: Debug + Send,
             DbRecord::Raw: for<'a> Deletable<
                 'query,
                 Self::AsyncConnection,
