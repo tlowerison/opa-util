@@ -703,9 +703,11 @@ mod opa_mongodb {
                 .map(|entity| serialize_entity(transaction_id, entity))
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(Error::default_details)?;
-            self.insert_many(entity_fulls, None)
-                .await
-                .map_err(Error::default_details)?;
+            if entity_fulls.len() > 0 {
+                self.insert_many(entity_fulls, None)
+                    .await
+                    .map_err(Error::default_details)?;
+            }
             Ok(())
         }
 
@@ -727,9 +729,11 @@ mod opa_mongodb {
                 .map(|entity| serialize_entity(transaction_id, entity))
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(Error::default_details)?;
-            self.insert_many(entity_fulls, None)
-                .await
-                .map_err(Error::default_details)?;
+            if entity_fulls.len() > 0 {
+                self.insert_many(entity_fulls, None)
+                    .await
+                    .map_err(Error::default_details)?;
+            }
             Ok(())
         }
     }
