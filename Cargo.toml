@@ -34,6 +34,7 @@ opentelemetry = "0"
 proc-macro2 = "1"
 proc-macro-util = { git = "https://github.com/tlowerison/proc-macro-util", rev = "b93d2c5" }
 quote = "1"
+schemars = "0"
 serde = "1"
 serde_json = "1"
 serde_with = "2"

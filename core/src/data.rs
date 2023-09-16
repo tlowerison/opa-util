@@ -1,4 +1,5 @@
 use crate::*;
+use schemars::JsonSchema;
 use serde::de::{Deserialize, DeserializeOwned, Deserializer};
 use serde::Serialize;
 use service_util::{Error, Query};
@@ -33,7 +34,7 @@ pub trait AuthzService {
     }
 }
 
-#[derive(AsRef, AsMut, Clone, Derivative, Deref, Serialize)]
+#[derive(AsRef, AsMut, Clone, Derivative, Deref, JsonSchema, Serialize)]
 #[derivative(Debug(bound = "T: Debug, <T as ToOwned>::Owned: Debug"))]
 pub struct OPAType<'a, T: ToOwned + 'a + ?Sized>(#[serde(borrow)] pub Cow<'a, T>);
 
