@@ -4,6 +4,7 @@ members = [
   "opa-util",
   "proc-macros",
 ]
+resolver = "2"
 
 [workspace.package]
 version = "0.1.0"
@@ -23,7 +24,7 @@ derivative = "2"
 diesel = "2"
 diesel-async = "0"
 diesel-dynamic-schema = "0"
-diesel-util = { git = "https://github.com/tlowerison/diesel-util", rev = "ab0957c" }
+diesel-util = { git = "https://github.com/tlowerison/diesel-util", rev = "e454ebf", default-features = false }
 float-cmp = "0"
 futures = "0"
 hyper = "0"
@@ -38,7 +39,7 @@ schemars = "0"
 serde = "1"
 serde_json = "1"
 serde_with = "2"
-service-util = { git = "https://github.com/tlowerison/service-util", rev = "db5a272", default-features = false }
+service-util = { git = "https://github.com/tlowerison/service-util", rev = "9954f37", default-features = false }
 session-util = { git = "https://github.com/tlowerison/session-util", rev = "bfee5b2", features = ["account-session"] }
 syn = "1"
 tokio = "1"
