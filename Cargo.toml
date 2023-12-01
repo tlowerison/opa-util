@@ -39,7 +39,7 @@ schemars = "0"
 serde = "1"
 serde_json = "1"
 serde_with = "2"
-service-util = { git = "https://github.com/tlowerison/service-util", rev = "a1e2194", default-features = false }
+service-util = { git = "https://github.com/tlowerison/service-util", rev = "f5ed37e", default-features = false }
 session-util = { git = "https://github.com/tlowerison/session-util", rev = "bfee5b2", features = ["account-session"] }
 syn = "1"
 tokio = "1"
